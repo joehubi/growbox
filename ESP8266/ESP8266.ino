@@ -3,19 +3,23 @@
   https://github.com/joehubi/growbox
 */
 
-// Import required libraries
-#include <ESP8266WiFi.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-#include <FS.h>
-#include <Wire.h>
+/*
+  Libray
+*/
+// ESP8266
+#include <ESP8266WiFi.h>        // https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266WiFi/src/ESP8266WiFi.h
+#include <ESPAsyncTCP.h>        // https://github.com/me-no-dev/ESPAsyncTCP
+#include <ESPAsyncWebServer.h>  // https://github.com/me-no-dev/ESPAsyncWebServer
+#include <FS.h>                 // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/FS.h
+
+#include <Wire.h>               // https://www.arduino.cc/en/Reference/Wire
 
   float TS01_sim = 23.1;
   int FS01_sim = 53;
-    
+  
 // Replace with your network credentials
-const char* ssid = "******";
-const char* password = "*****";
+const char* ssid = "Pumuckel";
+const char* password = "Stiller_83";
 
 String dummy_state = "OFF";
 
@@ -32,9 +36,10 @@ String getFS01() {
   return String(FS01_sim);
 }
 
-// Replaces placeholder with dummy state value
+// Multiplex processor for all variables 
 String processor(const String& var){
-  Serial.println(var);
+  Serial.println("\n");
+  Serial.println("processor: " + var + "\n");
   if(var == "STATE"){
     Serial.print(dummy_state);
     return dummy_state;
@@ -45,7 +50,6 @@ String processor(const String& var){
   else if (var == "FS01"){
     return getFS01();
   }
-
 }
  
 void setup(){
@@ -75,37 +79,24 @@ void setup(){
   /*
   Web Server GUI
   */
-  // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-  // Route to load style.css file
+  // Load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/style.css", "text/css");
   });
-
-
-
-  /*
-  Datenkommunikation
-  */
-  // Route to set ON
+  // Called when <IP>/ browsed (Refresh button)
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+  // Called when <IP>/on browsed
   server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request){  
     dummy_state = "ON";
     request->send(SPIFFS, "/index.html", String(), false, processor);
   }); 
-  // Route to set OFF
+  // Called when <IP>/off browsed
   server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request){  
     dummy_state = "OFF";
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
-  server.on("/TS01", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", getTS01().c_str());
-  });
-  server.on("/FS01", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", getFS01().c_str());
-  });
-
 
   // Start server
   server.begin();
@@ -130,6 +121,6 @@ void loop(){
     else {
       TS01_sim = TS01_sim + 0.1;
     }
-    
+  
   delay(500);
 }
