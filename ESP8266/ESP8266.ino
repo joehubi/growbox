@@ -14,8 +14,8 @@
   int FS01_sim = 53;
     
 // Replace with your network credentials
-const char* ssid = "Pumuckel";
-const char* password = "Stiller_83";
+const char* ssid = "******";
+const char* password = "*****";
 
 String dummy_state = "OFF";
 
