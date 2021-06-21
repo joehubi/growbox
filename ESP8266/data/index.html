@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!-- 
+  Johannes Huber
+  https://github.com/joehubi/growbox
+-->
+<html>
+<head>
+  <title>Growbox Web Server</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+  <h1>Growbox Web Server</h1>
+  <p>dummy_state<strong> %STATE%</strong></p>
+  <p>
+    <a href="/on"><button class="button">ON</button></a>
+    <a href="/off"><button class="button button2">OFF</button></a>
+  </p>
+  <p>
+    <p><strong>Temperaturen</strong> </p>
+    <span class="sensor-labels">TS01</span>
+    <span id="TS01">%TS01%</span>
+    <sup class="units">&deg;C</sup>
+  </p>
+  <p>
+    <span class="sensor-labels">Raumfeuchte</span>
+    <span id="FS01">%FS01%</span>
+    <sup class="units">&#37;</sup>
+  </p>
+</body>
+<script>
+
+/* Update Interval Temperature
+*/
+  setInterval(function ( ) {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        document.getElementById("TS01").innerHTML = this.responseText;
+      }
+    };
+    xhttp.open("GET", "/TS01", true);
+    xhttp.send();
+  }, 5000 ) ;
+
+/* Update Interval Humidity
+*/
+  setInterval(function ( ) {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        document.getElementById("FS01").innerHTML = this.responseText;
+      }
+    };
+    xhttp.open("GET", "/FS01", true);
+    xhttp.send();
+  }, 5000 ) ;
+
+</script>
+</html>
