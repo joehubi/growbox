@@ -23,8 +23,8 @@ int FS01_sim = 0;
 SoftwareSerial nodemcu(D6, D5);
 
 // Replace with your network credentials
-const char* ssid = "Pumuckel";
-const char* password = "Stiller_83";
+const char* ssid = "";
+const char* password = "";
 
 String dummy_state = "OFF";
 
