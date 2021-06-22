@@ -14,17 +14,26 @@
 
 #include <Wire.h>               // https://www.arduino.cc/en/Reference/Wire
 
-  float TS01_sim = 23.1;
-  int FS01_sim = 53;
-  
+#include <SoftwareSerial.h>     //https://www.arduino.cc/en/Reference/SoftwareSerial
+#include <ArduinoJson.h>        //https://github.com/bblanchon/ArduinoJson
+
+float TS01_sim = 0.0;
+int FS01_sim = 0;
+
+SoftwareSerial nodemcu(D6, D5);
+
 // Replace with your network credentials
-const char* ssid = "";
-const char* password = "";
+const char* ssid = "Pumuckel";
+const char* password = "Stiller_83";
 
 String dummy_state = "OFF";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
+
+/*
+ * Funktionen
+ */
 
 String getTS01() {
   Serial.println(TS01_sim);
@@ -51,11 +60,19 @@ String processor(const String& var){
     return getFS01();
   }
 }
- 
+
+ /*
+  * Setup
+  */
 void setup(){
 
-  // Serial port for debugging purposes
+  // Init SC
   Serial.begin(115200);
+  nodemcu.begin(4800);
+ 
+  //??????
+  //while (!Serial) continue;
+  //??????
 
   // Initialize SPIFFS
   if(!SPIFFS.begin()){
@@ -101,26 +118,41 @@ void setup(){
   // Start server
   server.begin();
 }
- 
+
+ /*
+  * Loop
+  */
+  
 void loop(){
 
+  StaticJsonDocument<300> doc;
 
-  /*
-  Simulation
-  */
-  if (FS01_sim > 56) {
-    FS01_sim = 52; 
-    }
-    else {
-      FS01_sim = FS01_sim + 1;
-    }
+  // Deserialize the JSON document
+  DeserializationError error = deserializeJson(doc, nodemcu);
 
-  if (TS01_sim > 25.0) {
-    TS01_sim = 23.2;
-    } 
-    else {
-      TS01_sim = TS01_sim + 0.1;
-    }
+  // Test if parsing succeeds.
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  // Fetch values.
+  //
+  // Most of the time, you can rely on the implicit casts.
+  // In other case, you can do doc["time"].as<long>();
+  const char* growbox = doc["growbox"];
+  long time = doc["time"];
+
+  TS01_sim = doc["data"][0];
+  FS01_sim = doc["data"][1];
+
+  // Print values.
+  Serial.println(growbox);
+  Serial.println(time);
+  Serial.println(TS01_sim, 1);
+  Serial.println(FS01_sim, 0);
   
-  delay(500);
+  delay(1000);
+  
 }
