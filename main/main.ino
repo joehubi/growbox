@@ -14,13 +14,25 @@
 double duty_cycle = 80.0; // This duty cycle is present on pin 9 and inverted on Pin 10
 int icr_const = 8000;
 
+// Control of the pipe ventilator
+    float P_ = 2;
+    float i_ = 0.01;
+    float T_set = 30.0;
+    float T_act = 0.0;
+    float T_err = 0.0;
+    float T_i_prev = 0.0;
+
+
 // INPUT testing
 const byte interruptPin = 2;
 volatile byte state = LOW;
 
 // timer
-int timer1 = 0;
-int timer2 = 0;
+int cycle_1000ms = 1000;
+int cycle_3000ms = 3000;
+unsigned long cycle_1000ms_dt;
+unsigned long cycle_3000ms_dt;
+unsigned long millisec;
 
 // Pins for Serial conncetion
 int rx = 5;
@@ -79,9 +91,10 @@ void setup(){
  
 void loop(){
 
-  timer1++;
-  if (timer1 > 1500) {
-    timer1 = 0;
+  millisec = millis();
+
+  if (millisec - cycle_3000ms_dt > cycle_3000ms) {
+    cycle_3000ms_dt = millisec; // save timer
 
     //Serial.print("Loop1");
     //Serial.print("\n");    
@@ -93,18 +106,20 @@ void loop(){
     TS01_sim = analogRead(pot1)/10.1;
     FS01_sim = analogRead(pot2)/10;
   
-      Serial.print("\n");
+    Serial.print("\n");
+    Serial.print("TS01:");
     Serial.print(TS01_sim);
-      Serial.print("\n");
+    Serial.print("\n");
+    Serial.print("FS01:");
     Serial.print(FS01_sim);
-      Serial.print("\n");
+    Serial.print("\n");
                
     /*
     Serial Send to NodeMCU via JSON
     */
     StaticJsonDocument<200> doc;
     doc["growbox"] = "webserver";
-    doc["time"] = 1351824120;
+    doc["time"] = millisec;
   
     // Add data array
     JsonArray data = doc.createNestedArray("data");
@@ -114,25 +129,64 @@ void loop(){
     // Generate the minified JSON and send it to the Serial port.
     serializeJson(doc, Serial);   // debugging
     serializeJson(doc, nodemcu);  // to NodeMCU
+
+
   }
 
-  timer2++;
-  if (timer2 > 500) {
-    timer2 = 0;
+  if (millisec - cycle_1000ms_dt > cycle_1000ms) {
+    cycle_1000ms_dt = millisec; // save timer
+
     /*
     Simulation
     */
     //Serial.print("Loop2");
     //Serial.print("\n");
+//
+//switch (var) {
+//  case label1:
+//    // Statement(s)
+//    break;
+//  case label2:
+//    // Statement(s)
+//    break;
+//  default:
+//    // Statement(s)
+//    break; // Wird nicht benötigt, wenn Statement(s) vorhanden sind
+//}
 
-    duty_cycle = analogRead(pot2)/10;
+    // Control of the pipe ventilator
+    T_act = analogRead(pot2)/10;
+    T_err = (T_act - T_set);
+ 
+    T_i_prev = T_i_prev + T_err;
+    Serial.print("T_i_prev:");
+    Serial.print(T_i_prev);
+    Serial.print("\n");   
+
+    duty_cycle = P_ * T_err + i_ * T_i_prev;
+
+    // min. Output 
+    if (duty_cycle < 10.0) {
+      duty_cycle = 10.0;
+    }
+    // max. Ouput
+    if (duty_cycle > 100.0) {
+      duty_cycle = 100.0;
+    }
+    
     OCR1A = (duty_cycle/100)*icr_const;
     OCR1B = (duty_cycle/100)*icr_const;
+
+    Serial.print("\n");
+    Serial.print("duty cycle:");
+    Serial.print(duty_cycle);
+    Serial.print("\n");
+
   }
 
   // switch LED for interrupt testing
   digitalWrite(LED_BUILTIN, state);
-  
+    
   delay(1);
 }
 
