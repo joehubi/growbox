@@ -5,31 +5,72 @@
 -->
 <html>
 <head>
-  <title>Growbox Web Server</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" type="text/css" href="style.css">
+	<title>Growbox Web Server</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="icon" href="data:,">
+	<link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
-  <h1>Growbox Web Server</h1>
-  <p>
-	<a href="/"><button class="button button3">Refresh</button></a>
-  </p>
-  <p>dummy_state<strong> %STATE%</strong></p>
-  <p>
-    <a href="/on"><button class="button">ON</button></a>
-    <a href="/off"><button class="button button2">OFF</button></a>
-  </p>
-  <p>
-    <p><strong>Temperaturen</strong> </p>
-    <span class="sensor-labels">TS01</span>
-    <span id="TS01">%TS01%</span>
-    <sup class="units">&deg;C</sup>
-  </p>
-  <p>
-    <span class="sensor-labels">Raumfeuchte</span>
-    <span id="FS01">%FS01%</span>
-    <sup class="units">&#37;</sup>
-  </p>
+	<h1>Growbox Web Server</h1>
+	<p>
+		Arduino time
+		<span
+			class="label_1"
+			id="arduino_time_ms">
+			%arduino_time_ms%
+		</span>
+		ms;
+	</p>
+		<p>
+		Sends:
+		<span
+			class="label_1"
+			id="_sends">
+			%_sends%
+		</span>
+	</p>
+		<p>
+		Reads:
+		<span
+			class="label_1"
+			id="_reads">
+			%_reads%
+		</span>
+	</p>
+	<p>
+		<a href="/"><button class="button button3">Refresh</button></a>
+	</p>
+	<p>
+		<strong>Messwerte</strong>
+	</p>
+	<p>
+		TS01:
+		<span 
+			class="label_1"
+			id="TS01">
+			%TS01%
+		</span>
+		&deg;C
+	</p>
+	<p>
+		FS01:
+		<span
+			class="label_1"
+			id="FS01">
+			%FS01%
+		</span>
+		&#37;
+	</p>
+	<p>
+		dummy_state:
+		<span
+			class="label_1">
+			%dummy_state_str% (%dummy_state_ctl_str%)
+		</span>
+		
+		<a href="/b1_on"><button class="button_small">ON</button></a>
+		<a href="/b1_off"><button class="button_small button2">OFF</button></a>
+		<a href="/b1_auto"><button class="button_small button4">AUTOMATIC</button></a>
+	</p>
 </body>
 </html>
