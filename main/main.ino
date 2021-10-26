@@ -12,24 +12,42 @@
 
 // #############################################################  Debugging Variables
 
-word debug_level = 0;
+word debug_level = 1;
 
 // Interupt-Input for testing the Interupt-Output
-const byte interruptPin = 2;      // Debugging
-volatile byte state = LOW;        // Debugging
+//const byte interruptPin = 2;      // Debugging
+//volatile byte state = LOW;        // Debugging
 
 int const pot1 = A0;  // Debugging with potentiometer
 int const pot2 = A1;  // Debugging ...
 
-float TS01_sim = 0.0;     // Simulation
-int FS01_sim = 0;         // Simulation
-int dummy_state = 0;      // Simulation
-int dummy_state_ctl = 2;  // Init to Automatic Mode
+float TS01 = 0.0;  
+float TS02 = 0.0; 
+float TS03 = 0.0;    
+int TS01_int = 0;         
+int TS02_int = 0;         
+int TS03_int = 0;         
+
+byte dummy_state = 0;      // Simulation
+byte dummy_state_ctl = 2;  // Init to Automatic Mode
+int const dummy_pin = PD2; 
+
+byte pipevent_state = 0;      
+byte pipevent_state_ctl = 2; 
+int const pipevent_pin = PD3; 
+ 
+byte led_state = 0;      
+byte led_state_ctl = 2; 
+int const led_pin = PD4; 
+ 
+byte ventilator_state = 0;      
+byte ventilator_state_ctl = 2; 
+int const ventilator_pin = PD5;  
 
 // #############################################################  Variables
 
-int rx = 5;                       // Receive pin for serial conncetion
-int tx = 6;                       // Send pin for serial conncetion
+int rx = 6;                       // Receive pin for serial conncetion
+int tx = 7;                       // Send pin for serial conncetion
 SoftwareSerial nodemcu(rx,tx);    //Initialise serial connection (SC) to NodeMCU
 
 RTC_DS3231 rtc;
@@ -41,9 +59,6 @@ word word_minute = 0;
 word word_minute_pre = 0; 
 word word_hour = 0;
 word word_hourm = 0;
-
-byte _state_led = 0;
-byte _state_vent = 0;
 
 word vent_min_array[31]={
   0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60
@@ -124,6 +139,21 @@ String add_null(String input) {
 // #############################################################      Setup
 
 void setup(){
+
+// ############################  Digital-Output
+
+  pinMode(dummy_pin, OUTPUT);
+  pinMode(pipevent_pin, OUTPUT);
+  pinMode(led_pin, OUTPUT);
+  pinMode(ventilator_pin, OUTPUT);
+
+  digitalWrite(dummy_pin, LOW);
+  digitalWrite(pipevent_pin, LOW);
+  digitalWrite(led_pin, LOW);
+  digitalWrite(ventilator_pin, LOW);
+
+// ############################  NodeMCU
+
   Serial.begin(9600);   // Debugging/print  
 
   nodemcu.setTimeout(20);
@@ -166,8 +196,8 @@ void setup(){
   //pinMode(interruptPin, INPUT_PULLUP);  // Interrupt-Input for testing
   //attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);  // Interrupt-Input for testing
 
-  pinMode(pot1, INPUT);   // Debugging/Simulation
-  pinMode(pot2, INPUT);   // Debugging/Simulation
+//  pinMode(pot1, INPUT);   // Debugging/Simulation
+//  pinMode(pot2, INPUT);   // Debugging/Simulation
 
 }
 
@@ -189,6 +219,8 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   if (millisec - cycle_1500ms_dt > cycle_1500ms) {
     cycle_1500ms_dt = millisec;
 
+// ############################################   dummy switch
+
     switch (dummy_state_ctl) {
       case 0:
         dummy_state = 0;
@@ -200,7 +232,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         // Add code for automation here 
         if (dummy_state == 1) {
           dummy_state = 0;
-        }
+         }
         else {
           dummy_state = 1;
         }
@@ -209,6 +241,38 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         break;
     }
 
+// ############################################   pipe ventilator
+
+    switch (pipevent_state_ctl) {
+      case 0:
+        pipevent_state = 0;
+        break;
+      case 1:
+        pipevent_state = 1;
+        break;
+      case 2:
+        // Add code for automation here 
+        if (pipevent_state == 1) {
+          pipevent_state = 0;
+         }
+        else {
+          pipevent_state = 1;
+        }
+        break;  
+      default:
+        break;
+    }
+
+// ############################################   ventilator
+
+  switch (ventilator_state_ctl) {
+    case 0: // manual OFF
+      ventilator_state = 0;
+      break;
+    case 1: // manual ON
+      ventilator_state = 1;
+      break;
+    case 2: // automatic   
     // At change of minute value
     if (word_minute != word_minute_pre) {
       word_minute_pre = word_minute;
@@ -216,66 +280,102 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       // Change ventilator state (on/off) according to actual minutes and state-array
       for (word i = 0; (i < sizeof(vent_min_array) / sizeof(vent_min_array[0]) && i < 1000) ; i++){
         if (word_minute == vent_min_array[i]) {
-          _state_vent = vent_state_array[i];
+          ventilator_state = vent_state_array[i];
           if (debug_level == 1) {
             Serial.println("minute:"+String(word_minute));
           }
           i = 1000; //exit for-loop
         }
         else if (word_minute < vent_min_array[i]) {
-          _state_vent = vent_state_array[i-1];
+          ventilator_state = vent_state_array[i-1];
           if (debug_level == 1) {
             Serial.println("minute:"+String(word_minute));
           }
           i = 1000; //exit for-loop       
         }
         // next loop cycle
-        }
+        }  
+      break;
+    }
+  }
+    
+ // ############################################   LED
+
+  switch (led_state_ctl) {
+    case 0: // manual OFF
+      led_state = 0;
+      break;
+    case 1: // manual ON
+      led_state = 1;
+      break;
+    case 2: // automatic   
+      // At change of minute value
+      if (word_minute != word_minute_pre) {
+        word_minute_pre = word_minute;
         
       // Change led state (on/off) according to actual hour-minutes and state-array
       for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
         if (word_hourm == led_hourm_array[i]) {
-          _state_led = led_state_array[i];
+          led_state = led_state_array[i];
           if (debug_level == 1) {
             Serial.println("hour minute:"+String(word_hourm));
           }
           i = 1000; //exit for-loop
         }
         else if (word_hourm < led_hourm_array[i]) {
-          _state_led = led_state_array[i-1];
+          led_state = led_state_array[i-1];
           if (debug_level == 1) {
             Serial.println("hour minute:"+String(word_hourm));
           }
           i = 1000; //exit for-loop       
         }
         // next loop cycle
-        }            
-    }
+        }  
+      break;
+      }                
+  }
+
+    digitalWrite(dummy_pin, dummy_state);
+    digitalWrite(pipevent_pin, pipevent_state);
+    digitalWrite(led_pin, led_state);
+    digitalWrite(ventilator_pin, ventilator_state);  
+
+  // ###### End 1500 ms
   }
 
 // ############################################   SEND
-  /*
-   * Send all relevant data to the webserver to view it in a browser
-   */
-   
+  
+// Send all relevant data to the webserver to view it in a browser
+    
   if ((millisec - timer_send_pre > timer_send_period)) {
     timer_send_pre = millisec;
         
 
-    TS01_sim = analogRead(pot1)/10.1;     // Simulation with poti
-    FS01_sim = analogRead(pot2)/10;       // Simulation with poti
+    TS01 = analogRead(pot1)/10.1;     // Simulation with poti
+    TS02 = analogRead(pot2)/10;       // Simulation with poti
+    TS03 = 66.6;
 
-
+    TS01_int = TS01*10;
+    TS02_int = TS02*10;
+    TS03_int = TS03*10;
+        
     StaticJsonDocument<200> txdoc;
 
     txdoc["growbox"] = "to NodeMCU";
     txdoc["time"] = millisec;      // send arduino time to NodeMCU
 
     JsonArray data = txdoc.createNestedArray("data");       // Add data array
-    data.add(TS01_sim);     // Add data ...
-    data.add(FS01_sim);
+    data.add(TS01_int);     // Add data ...
+    data.add(TS02_int);
+    data.add(TS03_int);
     JsonArray state = txdoc.createNestedArray("state");         // Add state array
     state.add(dummy_state); // Add data ...  
+    state.add(pipevent_state); 
+    state.add(led_state);  
+    state.add(ventilator_state);  
+    JsonArray rtc_time = txdoc.createNestedArray("rtc_time");         // Add time array
+    rtc_time.add(word_hour);  
+    rtc_time.add(word_minute);  
 
     //Send data to NodeMCU
     serializeJson(txdoc, nodemcu);
@@ -328,7 +428,10 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     word_hour = now.hour();
     word_minute = now.minute();
     word_hourm = now.minute() + 60*(now.hour());   // calc hourm (minutes of the day)
-    
+
+//    Serial.print("###TIME### "+String(word_hour)+":"+String(word_minute));
+//    Serial.print("\n");
+      
 //    day_ = String(now.day());    
 //    month_ = String(now.month());
 //    hour_ = String(now.hour());
@@ -354,9 +457,8 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
 
 // ############################################   READ
-  /*
-   * Reads the switches from the NodeMCU (webserver) via Tx/Rx
-   */
+
+// Reads the switches from the NodeMCU (webserver) via Tx/Rx
 
   if ((millisec - timer_read_pre > timer_read_period)) {
   timer_read_pre = millisec;
@@ -374,8 +476,11 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       if (rxdoc.isNull()) {       
         } else {
   
-          dummy_state_ctl = rxdoc["switches"][0];    // Get data from array
-
+          dummy_state_ctl =       rxdoc["switches"][0];    // Get data from array
+          pipevent_state_ctl =    rxdoc["switches"][1];
+          led_state_ctl =         rxdoc["switches"][2];
+          ventilator_state_ctl =  rxdoc["switches"][3];
+                    
           if (debug_level == 1) {
             Serial.print("###READ### rx-buffer: "+String(rxdoc.size())+","+String(sizeof(rxdoc))+","+String(rxdoc.memoryUsage()));  
             Serial.print("\n");
@@ -400,11 +505,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       }  
 
     if (debug_level == 3) {
-      Serial.println("duty_cycle:"+String(duty_cycle));       
-      Serial.println("TS01:"+String(TS01_sim));       
-      Serial.println("FS01:"+String(FS01_sim));
-      Serial.println("dummy_state:"+String(dummy_state));
-      Serial.println("dummy_state_ctl:"+String(dummy_state_ctl));            
+      Serial.println("duty_cycle:"+String(duty_cycle));                 
     } 
   }
 
@@ -412,4 +513,5 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 //  ##############################################################  End of loop 
 
    // digitalWrite(LED_BUILTIN, state);     // Debuggin / switch LED for interrupt testing   
+   
 }
