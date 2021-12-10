@@ -9,17 +9,22 @@
 #include "RTClib.h"           // https://github.com/StephanFink/RTClib/archive/master.zip
 #include <SoftwareSerial.h>   //https://www.arduino.cc/en/Reference/SoftwareSerial
 #include <ArduinoJson.h>      //https://github.com/bblanchon/ArduinoJson
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 // #############################################################  Debugging Variables
 
-word debug_level = 1;
+word debug_level = 2;
 
 // Interupt-Input for testing the Interupt-Output
 //const byte interruptPin = 2;      // Debugging
 //volatile byte state = LOW;        // Debugging
 
-int const pot1 = A0;  // Debugging with potentiometer
-int const pot2 = A1;  // Debugging ...
+// #############################################################  Temperature sensors
+
+#define ONE_WIRE_BUS 8                    // Data wire is plugged into pin 8 on the Arduino
+OneWire oneWire(ONE_WIRE_BUS);            // Setup a OneWire instance to communicate with any OneWire devices
+DallasTemperature tempsensors(&oneWire);  // Pass OneWire reference to Dallas Temperature
 
 float TS01 = 0.0;  
 float TS02 = 0.0; 
@@ -27,6 +32,11 @@ float TS03 = 0.0;
 int TS01_int = 0;         
 int TS02_int = 0;         
 int TS03_int = 0;         
+
+int TS_max = 40;
+int TS_error = 0;
+
+// #############################################################  Actuators
 
 byte dummy_state = 0;      // Simulation
 byte dummy_state_ctl = 2;  // Init to Automatic Mode
@@ -46,6 +56,10 @@ int const ventilator_pin = PD5;
 
 // #############################################################  Variables
 
+const int mcutimeout = 300;
+const int mcubaudrate = 1200;
+const int txbuffer = 150;
+const int rxbuffer = 220;
 int rx = 6;                       // Receive pin for serial conncetion
 int tx = 7;                       // Send pin for serial conncetion
 SoftwareSerial nodemcu(rx,tx);    //Initialise serial connection (SC) to NodeMCU
@@ -89,31 +103,35 @@ word led_state_array[96]={
 //String second_ = "";
 
 // Interupt-Output interrupt for pipe ventilator
-double duty_cycle = 80.0;     // This duty cycle is present on pin 9 and inverted on Pin 10
+double duty_cycle = 0.0;     // This duty cycle is present on pin 9 and inverted on Pin 10
+int duty_cycle_int = 0;    
+const double duty_cycle_min = 15.0;     
+const double duty_cycle_max = 100.0;     
 //int icr_const = 8000;       // -> results in 1 Hz PWM cycle (debugging)
 int icr_const = 7;            // -> results in 1,12 kHz PWM cycle 
 
 // Control of the pipe ventilator
 float P_ = 2;           // P-Anteil
 float i_ = 0.01;        // I-Anteil
-float T_set = 30.0;     // Setpoint
+float T_set = 25.0;     // Setpoint
 float T_act = 0.0;      // Actual value of sensor
 float T_err = 0.0;      // Error (actual value - setpoint)
 float T_i_prev = 0.0;   // buffer for integrator
 
 // Timer for timed loops
-int cycle_1000ms = 1000;      
+const int cycle_1000ms = 1000;      
 unsigned long cycle_1000ms_dt;
-int cycle_1500ms = 1500;
+const int cycle_1500ms = 1500;
 unsigned long cycle_1500ms_dt;
-int cycle_5000ms = 5000;
+const int cycle_5000ms = 5000;
 unsigned long cycle_5000ms_dt;
-int cycle_debug = 1200;
+const int cycle_debug = 3000;
 unsigned long cycle_debug_dt;
+
 unsigned long timer_read_pre = 0;
-const unsigned long timer_read_period = 1000;  
+const unsigned long timer_read_period = 678;  
 unsigned long timer_send_pre = 0;
-const unsigned long timer_send_period = 10000;  
+const unsigned long timer_send_period = 5000;  
 
 unsigned long millisec;           // arduino time-ms
 
@@ -138,8 +156,11 @@ String add_null(String input) {
 
 // #############################################################      Setup
 
-void setup(){
+void setup(void){
 
+  Serial.begin(9600);   // Debugging/print  
+  delay(500);
+  
 // ############################  Digital-Output
 
   pinMode(dummy_pin, OUTPUT);
@@ -154,14 +175,17 @@ void setup(){
 
 // ############################  NodeMCU
 
-  Serial.begin(9600);   // Debugging/print  
-
-  nodemcu.setTimeout(20);
-  nodemcu.begin(1200);
+  nodemcu.setTimeout(mcutimeout);
+  nodemcu.begin(mcubaudrate);
   pinMode(tx, OUTPUT);    // Serial interface to NodeMCU
   pinMode(rx, INPUT);     // Serial interface to NodeMCU
-  delay(1000);
+  delay(500);
 
+// ############################  Temperature sensors
+
+  tempsensors.begin();
+  delay(500);
+  
 // ############################  RTC
 
   if (! rtc.begin()) {
@@ -169,11 +193,8 @@ void setup(){
     while (1);
   }
 
-  if (rtc.lostPower() || syncOnFirstStart) {
-    Serial.println("RTC was of current. Time will be synchronized to 'compile time' again.");
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    // alternative: rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
-  }
+  //rtc.adjust(DateTime(2021, 11, 12, 14, 13, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss
+
 
 // ############################  Interrupt-Output (PWM pins)
 
@@ -202,15 +223,9 @@ void setup(){
 }
 
 
-
-
-
-
-
-
 // #############################################################      Loop
 
-void loop(){
+void loop(void){
 
 millisec = millis();      // get time from arduino-clock (time since arduino is running in ms)
 
@@ -230,34 +245,12 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         break;
       case 2:
         // Add code for automation here 
-        if (dummy_state == 1) {
-          dummy_state = 0;
-         }
-        else {
-          dummy_state = 1;
-        }
-        break;  
-      default:
-        break;
-    }
-
-// ############################################   pipe ventilator
-
-    switch (pipevent_state_ctl) {
-      case 0:
-        pipevent_state = 0;
-        break;
-      case 1:
-        pipevent_state = 1;
-        break;
-      case 2:
-        // Add code for automation here 
-        if (pipevent_state == 1) {
-          pipevent_state = 0;
-         }
-        else {
-          pipevent_state = 1;
-        }
+//        if (dummy_state == 1) {
+//          dummy_state = 0;
+//         }
+//        else {
+//          dummy_state = 1;
+//        }
         break;  
       default:
         break;
@@ -281,14 +274,14 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       for (word i = 0; (i < sizeof(vent_min_array) / sizeof(vent_min_array[0]) && i < 1000) ; i++){
         if (word_minute == vent_min_array[i]) {
           ventilator_state = vent_state_array[i];
-          if (debug_level == 1) {
+          if (debug_level >= 1) {
             Serial.println("minute:"+String(word_minute));
           }
           i = 1000; //exit for-loop
         }
         else if (word_minute < vent_min_array[i]) {
           ventilator_state = vent_state_array[i-1];
-          if (debug_level == 1) {
+          if (debug_level >= 1) {
             Serial.println("minute:"+String(word_minute));
           }
           i = 1000; //exit for-loop       
@@ -300,7 +293,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   }
     
  // ############################################   LED
-
+  
   switch (led_state_ctl) {
     case 0: // manual OFF
       led_state = 0;
@@ -317,14 +310,14 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
         if (word_hourm == led_hourm_array[i]) {
           led_state = led_state_array[i];
-          if (debug_level == 1) {
+          if (debug_level >= 1) {
             Serial.println("hour minute:"+String(word_hourm));
           }
           i = 1000; //exit for-loop
         }
         else if (word_hourm < led_hourm_array[i]) {
           led_state = led_state_array[i-1];
-          if (debug_level == 1) {
+          if (debug_level >= 1) {
             Serial.println("hour minute:"+String(word_hourm));
           }
           i = 1000; //exit for-loop       
@@ -335,11 +328,29 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       }                
   }
 
-    digitalWrite(dummy_pin, dummy_state);
-    digitalWrite(pipevent_pin, pipevent_state);
-    digitalWrite(led_pin, led_state);
-    digitalWrite(ventilator_pin, ventilator_state);  
+ // ############################################   Write hardware outputs
+  
+  if (TS_error == 1) {
+                   
+    // Error
+    dummy_state       = 0;
+    pipevent_state    = 0;
+    led_state         = 0;
+    ventilator_state  = 0;
 
+    digitalWrite(dummy_pin,         0);
+    digitalWrite(pipevent_pin,      0);
+    digitalWrite(led_pin,           0);
+    digitalWrite(ventilator_pin,    0); 
+  }
+    // No error
+  else {
+    digitalWrite(dummy_pin,       dummy_state);
+    digitalWrite(pipevent_pin,    pipevent_state);
+    digitalWrite(led_pin,         led_state);
+    digitalWrite(ventilator_pin,  ventilator_state);  
+  }
+  
   // ###### End 1500 ms
   }
 
@@ -349,17 +360,13 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     
   if ((millisec - timer_send_pre > timer_send_period)) {
     timer_send_pre = millisec;
-        
-
-    TS01 = analogRead(pot1)/10.1;     // Simulation with poti
-    TS02 = analogRead(pot2)/10;       // Simulation with poti
-    TS03 = 66.6;
-
+    
     TS01_int = TS01*10;
     TS02_int = TS02*10;
     TS03_int = TS03*10;
+    duty_cycle_int = duty_cycle*10;
         
-    StaticJsonDocument<200> txdoc;
+    StaticJsonDocument<txbuffer> txdoc;
 
     txdoc["growbox"] = "to NodeMCU";
     txdoc["time"] = millisec;      // send arduino time to NodeMCU
@@ -368,6 +375,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     data.add(TS01_int);     // Add data ...
     data.add(TS02_int);
     data.add(TS03_int);
+    data.add(duty_cycle_int);
     JsonArray state = txdoc.createNestedArray("state");         // Add state array
     state.add(dummy_state); // Add data ...  
     state.add(pipevent_state); 
@@ -380,10 +388,12 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     //Send data to NodeMCU
     serializeJson(txdoc, nodemcu);
 
-    if (debug_level == 1) {
-      Serial.print("###SEND### tx-buffer: "+String(txdoc.size())+","+String(sizeof(txdoc))+","+String(txdoc.memoryUsage()));
-      Serial.print("\n"); 
+    if (debug_level >= 1) {
       serializeJson(txdoc, Serial);                                
+      Serial.print("\n");     
+    }
+    if (debug_level >= 2) {
+      Serial.print("###SEND### tx-buffer: "+String(txdoc.size())+","+String(sizeof(txdoc))+","+String(txdoc.memoryUsage()));
       Serial.print("\n");     
     }
   }
@@ -393,27 +403,46 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   if (millisec - cycle_1000ms_dt > cycle_1000ms) {
     cycle_1000ms_dt = millisec;
     
-// ############################################   Simulation
-    T_act = analogRead(pot2)/10;
-
 // ############################################   Pipe ventilator controller
+    T_act = TS01;   
     T_err = (T_act - T_set);                  // calc error
     T_i_prev = T_i_prev + T_err;              // integrate
     duty_cycle = P_ * T_err + i_ * T_i_prev;  // calc output (P-Anteil + I-Anteil)
 
 // ############################################   Pipe ventilator output
-    // min. Output
-    if (duty_cycle < 10.0) {
-      duty_cycle = 10.0;
+
+
+    // ############################################   pipe ventilator
+
+    switch (pipevent_state_ctl) {
+      case 0:
+        pipevent_state = 0;
+        duty_cycle = 0.0;
+        break;
+      case 1:
+        pipevent_state = 1;
+        duty_cycle = 80.0;
+        break;
+      case 2:
+        pipevent_state = 2; 
+        
+        // min. Output
+        if (duty_cycle < duty_cycle_min) {
+          duty_cycle = duty_cycle_min;
+        }
+        // max. Ouput
+        if (duty_cycle > duty_cycle_max) {
+          duty_cycle = duty_cycle_max;
+        }       
+        break;  
+        
+        default:
+        break;
     }
-    // max. Ouput
-    if (duty_cycle > 100.0) {
-      duty_cycle = 100.0;
-    }
-    
+
     OCR1A = (duty_cycle/100)*icr_const;     // Send to interrupt-output
     OCR1B = (duty_cycle/100)*icr_const;     // Send to interrupt-output
-    
+
   }
 
 // ############################################   5000 ms 
@@ -462,50 +491,71 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
   if ((millisec - timer_read_pre > timer_read_period)) {
   timer_read_pre = millisec;
-  
-  StaticJsonDocument<300> rxdoc;
+
+  StaticJsonDocument<rxbuffer> rxdoc;
   DeserializationError error = deserializeJson(rxdoc, nodemcu);
  
   if (error) {
-    if (debug_level == 2) {
+    if (debug_level >= 2) {
       Serial.print(F("deserializeJson() failed: "));
       Serial.println(error.f_str());
       }    
     }
     else {
-      if (rxdoc.isNull()) {       
+      if (rxdoc.isNull() || rxdoc.memoryUsage() < 76) {       
         } else {
-  
+          
           dummy_state_ctl =       rxdoc["switches"][0];    // Get data from array
           pipevent_state_ctl =    rxdoc["switches"][1];
           led_state_ctl =         rxdoc["switches"][2];
           ventilator_state_ctl =  rxdoc["switches"][3];
                     
-          if (debug_level == 1) {
-            Serial.print("###READ### rx-buffer: "+String(rxdoc.size())+","+String(sizeof(rxdoc))+","+String(rxdoc.memoryUsage()));  
-            Serial.print("\n");
+          if (debug_level >= 1) {
             serializeJson(rxdoc, Serial);                                
             Serial.print("\n");
           }         
+          if (debug_level >= 2) {
+            Serial.print("###READ### rx-buffer: "+String(rxdoc.size())+","+String(sizeof(rxdoc))+","+String(rxdoc.memoryUsage()));  
+            Serial.print("\n");
+          }        
         }
       }
+
+  // ############################################   temperature sensors
+
+  tempsensors.requestTemperatures();
+  //Serial.println("Temperature is: " + String(tempsensors.getTempCByIndex(0)) + "°C");
+  TS01 = tempsensors.getTempCByIndex(0);
+  TS02 = tempsensors.getTempCByIndex(1);
+  TS03 = tempsensors.getTempCByIndex(2);
+
+    // Maximum temperature ?
+    if (TS01 > TS_max || TS02 > TS_max || TS01 < -10 || TS02 < -10) {
+      TS_error = 1; 
+      
+      Serial.println("Temperature to high"); 
+      Serial.println("TS_max:"+String(TS_max)); 
+      Serial.println("TS01:"+String(TS01));
+      Serial.println("TS02:"+String(TS02));
+      Serial.println("TS03:"+String(TS03));
+      Serial.print("\n"); 
+    }
   }
   
 //  ##############################################################  Debug 
 
   if (millisec - cycle_debug_dt > cycle_debug) {
     cycle_debug_dt = millisec;
-    
-    if (debug_level == 1) {
 
-      }  
+    if (debug_level >= 1) {
+
+    }  
       
-    if (debug_level == 2) {
+    if (debug_level >= 2) {
+      Serial.println("duty_cycle:"+String(duty_cycle)); 
+    }  
 
-      }  
-
-    if (debug_level == 3) {
-      Serial.println("duty_cycle:"+String(duty_cycle));                 
+    if (debug_level >= 3) {                    
     } 
   }
 
