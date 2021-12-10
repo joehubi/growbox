@@ -50,8 +50,8 @@ SoftwareSerial nodemcu(D6, D5);           // Serial conncetion to NodeMCU
 
 unsigned long arduino_time_ms = 0;
 
-const char* ssid = "Pumuckel";            // wifi network
-const char* password = "Stiller_83";      // wifi network
+const char* ssid = "+++";            // wifi network
+const char* password = "+++";      // wifi network
 
 byte dummy_state = 0;                      // 0=OFF, 1=ON
 String dummy_state_str = "...";
