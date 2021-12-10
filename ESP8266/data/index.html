@@ -13,15 +13,26 @@
 <body>
 	<h1>Growbox Web Server</h1>
 	<p>
-		Arduino time
+		Arduino running since 
 		<span
 			class="label_1"
 			id="arduino_time_ms">
 			%arduino_time_ms%
 		</span>
-		ms;
+		ms, RTC:
+		<span
+			class="label_1"
+			id="word_hour">
+			%word_hour%
+		</span>
+		:
+		<span
+			class="label_1"
+			id="word_minute">
+			%word_minute%
+		</span>
 	</p>
-		<p>
+	<p>
 		Sends:
 		<span
 			class="label_1"
@@ -29,7 +40,7 @@
 			%_sends%
 		</span>
 	</p>
-		<p>
+	<p>
 		Reads:
 		<span
 			class="label_1"
@@ -53,14 +64,23 @@
 		&deg;C
 	</p>
 	<p>
-		FS01:
-		<span
+		TS02:
+		<span 
 			class="label_1"
-			id="FS01">
-			%FS01%
+			id="TS02">
+			%TS02%
 		</span>
-		&#37;
+		&deg;C
 	</p>
+	<p>
+		TS03:
+		<span 
+			class="label_1"
+			id="TS03">
+			%TS03%
+		</span>
+		&deg;C
+	</p>	
 	<p>
 		dummy_state:
 		<span
@@ -72,5 +92,43 @@
 		<a href="/b1_off"><button class="button_small button2">OFF</button></a>
 		<a href="/b1_auto"><button class="button_small button4">AUTOMATIC</button></a>
 	</p>
+	<p>
+		Pipe ventilator:
+		<span
+			class="label_1">
+			%pipevent_state_str% (%pipevent_state_ctl_str%)
+		</span>
+		dutycycle:
+		<span
+			class="label_1"
+			id="dutycycle">
+			%dutycycle%
+		</span>		
+		<a href="/b2_on"><button class="button_small">ON</button></a>
+		<a href="/b2_off"><button class="button_small button2">OFF</button></a>
+		<a href="/b2_auto"><button class="button_small button4">AUTOMATIC</button></a>
+	</p>
+	<p>
+		LED:
+		<span
+			class="label_1">
+			%led_state_str% (%led_state_ctl_str%)
+		</span>
+		
+		<a href="/b3_on"><button class="button_small">ON</button></a>
+		<a href="/b3_off"><button class="button_small button2">OFF</button></a>
+		<a href="/b3_auto"><button class="button_small button4">AUTOMATIC</button></a>
+	</p>
+	<p>
+		Ventilator:
+		<span
+			class="label_1">
+			%ventilator_state_str% (%ventilator_state_ctl_str%)
+		</span>
+		
+		<a href="/b4_on"><button class="button_small">ON</button></a>
+		<a href="/b4_off"><button class="button_small button2">OFF</button></a>
+		<a href="/b4_auto"><button class="button_small button4">AUTOMATIC</button></a>
+	</p>	
 </body>
 </html>
