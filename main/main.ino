@@ -14,7 +14,10 @@
 
 // #############################################################  Debugging Variables
 
-word debug_level = 2;
+const bool debug_misc = false;
+const bool debug_comm_1 = true;
+const bool debug_comm_2 = true;
+const bool debug_auto = false;
 
 // Interupt-Input for testing the Interupt-Output
 //const byte interruptPin = 2;      // Debugging
@@ -33,7 +36,7 @@ int TS01_int = 0;
 int TS02_int = 0;         
 int TS03_int = 0;         
 
-int TS_max = 40;
+const int TS_max = 50;
 int TS_error = 0;
 
 // #############################################################  Actuators
@@ -60,40 +63,47 @@ const int mcutimeout = 300;
 const int mcubaudrate = 1200;
 const int txbuffer = 150;
 const int rxbuffer = 220;
-int rx = 6;                       // Receive pin for serial conncetion
-int tx = 7;                       // Send pin for serial conncetion
+const int rx = 6;                       // Receive pin for serial conncetion
+const int tx = 7;                       // Send pin for serial conncetion
 SoftwareSerial nodemcu(rx,tx);    //Initialise serial connection (SC) to NodeMCU
 
 RTC_DS3231 rtc;
 
-bool syncOnFirstStart = false; // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen.
+const bool syncOnFirstStart = false; // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen.
                               // sollte standardm��ig auf false stehen
 String timestamp = "dd.mm.yyyy HH:MM:ss";
-word word_minute = 0;
-word word_minute_pre = 0; 
-word word_hour = 0;
+
+
+byte vent_minute = 0;
+byte vent_minute_pre = 0; 
+
+byte led_minute = 0;
+byte led_minute_pre = 0; 
+
+byte _minute = 0;
+byte _hour = 0;
 word word_hourm = 0;
 
-word vent_min_array[31]={
-  0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60
+const byte vent_min_array[31]={
+  0 ,2 ,4 ,6 ,8 ,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60
   };  // minutes of an hour
-word vent_state_array[31]={
-  0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0
+const byte vent_state_array[31]={
+  1 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0
   };    // on/off time of ventilator can be programmed here (0=off, 1=on within one minute)
 
-word led_hourm_array[96]={
-  0,15,30,45,60,75,90,105,120,135,150,165,180,195,210,225,240,255,270,285,300,315,
-  330,345,360,375,390,405,420,435,450,465,480,495,510,525,540,555,570,585,600,615,
-  630,645,660,675,690,705,720,735,750,765,780,795,810,825,840,855,870,885,900,915,
-  930,945,960,975,990,1005,1020,1035,1050,1065,1080,1095,1110,1125,1140,1155,1170,
-  1185,1200,1215,1230,1245,1260,1275,1290,1305,1320,1335,1350,1365,1380,1395,1410,1425
+const word led_hourm_array[96]={
+  0   , 15  , 30  , 45  , 60  , 75  , 90  , 105 , 120 , 135 , 150 , 165 , 180 , 195 , 210 , 225 , 240 , 255 , 270 , 285 ,
+  300 , 315 , 330 , 345 , 360 , 375 , 390 , 405 , 420 , 435 , 450 , 465 , 480 , 495 , 510 , 525 , 540 , 555 , 570 ,
+  585 , 600 , 615 , 630 , 645 , 660 , 675 , 690 , 705 , 720 , 735 , 750 , 765 , 780 , 795 , 810 , 825 , 840 , 855 ,
+  870 , 885 , 900 , 915 , 930 , 945 , 960 , 975 , 990 , 1005, 1020, 1035, 1050, 1065, 1080, 1095, 1110, 1125, 1140,
+  1155, 1170, 1185, 1200, 1215, 1230, 1245, 1260, 1275, 1290, 1305, 1320, 1335, 1350, 1365, 1380, 1395, 1410, 1425
   };  // minutes of a 24 hour day
-word led_state_array[96]={
-  0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
-  0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
-  0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
-  0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
-  0,1,0,1,0,1,0,1
+const word led_state_array[96]={
+  0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   ,
+  0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 1   , 1   , 1   , 1   , 1   ,
+  1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   ,
+  1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   ,
+  1   , 1   , 1   , 1   , 1   , 1   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0
   };    // on/off time of LED can be programmed here (0=off, 1=on within one day)
   
 //String day_ = "";
@@ -111,9 +121,9 @@ const double duty_cycle_max = 100.0;
 int icr_const = 7;            // -> results in 1,12 kHz PWM cycle 
 
 // Control of the pipe ventilator
-float P_ = 2;           // P-Anteil
-float i_ = 0.01;        // I-Anteil
-float T_set = 25.0;     // Setpoint
+const float P_ = 2;           // P-Anteil
+const float i_ = 0.01;        // I-Anteil
+const float T_set = 25.0;     // Setpoint
 float T_act = 0.0;      // Actual value of sensor
 float T_err = 0.0;      // Error (actual value - setpoint)
 float T_i_prev = 0.0;   // buffer for integrator
@@ -188,12 +198,13 @@ void setup(void){
   
 // ############################  RTC
 
-  if (! rtc.begin()) {
-    Serial.println("RTC can not be initialized");
-    while (1);
-  }
+//  if (! rtc.begin()) {
+//    Serial.println("RTC can not be initialized");
+//    while (1);
+//  }
 
-  //rtc.adjust(DateTime(2021, 11, 12, 14, 13, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss
+  // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
+  // rtc.adjust(DateTime(2023, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss
 
 
 // ############################  Interrupt-Output (PWM pins)
@@ -267,22 +278,26 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       break;
     case 2: // automatic   
     // At change of minute value
-    if (word_minute != word_minute_pre) {
-      word_minute_pre = word_minute;
+    if (vent_minute != vent_minute_pre) {
+      vent_minute_pre = vent_minute;
+
+      if (debug_auto == true) {
+      Serial.println("check ventilator state");
+      }
 
       // Change ventilator state (on/off) according to actual minutes and state-array
       for (word i = 0; (i < sizeof(vent_min_array) / sizeof(vent_min_array[0]) && i < 1000) ; i++){
-        if (word_minute == vent_min_array[i]) {
+        if (_minute == vent_min_array[i]) {
           ventilator_state = vent_state_array[i];
-          if (debug_level >= 1) {
-            Serial.println("minute:"+String(word_minute));
+          if (debug_auto == true) {
+            Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
           }
           i = 1000; //exit for-loop
         }
-        else if (word_minute < vent_min_array[i]) {
+        else if (_minute < vent_min_array[i]) {
           ventilator_state = vent_state_array[i-1];
-          if (debug_level >= 1) {
-            Serial.println("minute:"+String(word_minute));
+          if (debug_auto == true) {
+            Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
           }
           i = 1000; //exit for-loop       
         }
@@ -301,31 +316,52 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     case 1: // manual ON
       led_state = 1;
       break;
-    case 2: // automatic   
-      // At change of minute value
-      if (word_minute != word_minute_pre) {
-        word_minute_pre = word_minute;
-        
-      // Change led state (on/off) according to actual hour-minutes and state-array
-      for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
-        if (word_hourm == led_hourm_array[i]) {
-          led_state = led_state_array[i];
-          if (debug_level >= 1) {
-            Serial.println("hour minute:"+String(word_hourm));
-          }
-          i = 1000; //exit for-loop
-        }
-        else if (word_hourm < led_hourm_array[i]) {
-          led_state = led_state_array[i-1];
-          if (debug_level >= 1) {
-            Serial.println("hour minute:"+String(word_hourm));
-          }
-          i = 1000; //exit for-loop       
-        }
-        // next loop cycle
-        }  
+    case 2: // 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr)
+      if ((word_hourm >= 240) && (word_hourm <= 1320)) {
+        led_state = 1;
+      }
+      else {
+        led_state = 0;
+      }
       break;
-      }                
+    case 3: // 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr)
+      if ((word_hourm >= 480) && (word_hourm <= 1200)) {
+        led_state = 1;
+      }
+      else {
+        led_state = 0;
+      }
+      break;
+    case 4: // Entsprechend Array   
+      // At change of minute value
+      if (led_minute != led_minute_pre) {
+        led_minute_pre = led_minute;
+
+        if (debug_auto == true) {
+        Serial.println("check LED state");
+        }
+
+        // Change led state (on/off) according to actual hour-minutes and state-array
+        for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
+          if (word_hourm == led_hourm_array[i]) {
+            led_state = led_state_array[i];
+            if (debug_auto == true) {
+              Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(word_hourm));
+            }
+            i = 1000; //exit for-loop
+          }
+          else if (word_hourm < led_hourm_array[i]) {
+            led_state = led_state_array[i-1];
+            if (debug_auto == true) {
+              Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(word_hourm));
+            }
+            i = 1000; //exit for-loop       
+          }
+          // next loop cycle
+          }  
+        break;
+        }    
+
   }
 
  // ############################################   Write hardware outputs
@@ -354,7 +390,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   // ###### End 1500 ms
   }
 
-// ############################################   SEND
+// ############################################   SEND (5000 ms)
   
 // Send all relevant data to the webserver to view it in a browser
     
@@ -382,17 +418,17 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     state.add(led_state);  
     state.add(ventilator_state);  
     JsonArray rtc_time = txdoc.createNestedArray("rtc_time");         // Add time array
-    rtc_time.add(word_hour);  
-    rtc_time.add(word_minute);  
+    rtc_time.add(_hour);  
+    rtc_time.add(_minute);  
 
     //Send data to NodeMCU
     serializeJson(txdoc, nodemcu);
 
-    if (debug_level >= 1) {
+    if (debug_comm_1 == true) {
       serializeJson(txdoc, Serial);                                
       Serial.print("\n");     
     }
-    if (debug_level >= 2) {
+    if (debug_comm_2 == true) {
       Serial.print("###SEND### tx-buffer: "+String(txdoc.size())+","+String(sizeof(txdoc))+","+String(txdoc.memoryUsage()));
       Serial.print("\n");     
     }
@@ -454,11 +490,15 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
     DateTime now = rtc.now();
 
-    word_hour = now.hour();
-    word_minute = now.minute();
+    _hour = now.hour();
+    _minute = now.minute();
     word_hourm = now.minute() + 60*(now.hour());   // calc hourm (minutes of the day)
 
-//    Serial.print("###TIME### "+String(word_hour)+":"+String(word_minute));
+    // Trigger für Statuswechsel (LED / Ventilator updaten)
+    vent_minute = _minute;
+    led_minute = _minute;
+
+//    Serial.print("###TIME### "+String(_hour)+":"+String(_minute));
 //    Serial.print("\n");
       
 //    day_ = String(now.day());    
@@ -485,7 +525,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   }
 
 
-// ############################################   READ
+// ############################################   READ NodeMCU
 
 // Reads the switches from the NodeMCU (webserver) via Tx/Rx
 
@@ -496,7 +536,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   DeserializationError error = deserializeJson(rxdoc, nodemcu);
  
   if (error) {
-    if (debug_level >= 2) {
+    if (debug_comm_1 == true) {
       Serial.print(F("deserializeJson() failed: "));
       Serial.println(error.f_str());
       }    
@@ -510,18 +550,18 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
           led_state_ctl =         rxdoc["switches"][2];
           ventilator_state_ctl =  rxdoc["switches"][3];
                     
-          if (debug_level >= 1) {
+          if (debug_comm_1 == true) {
             serializeJson(rxdoc, Serial);                                
             Serial.print("\n");
           }         
-          if (debug_level >= 2) {
+          if (debug_comm_2 == true) {
             Serial.print("###READ### rx-buffer: "+String(rxdoc.size())+","+String(sizeof(rxdoc))+","+String(rxdoc.memoryUsage()));  
             Serial.print("\n");
           }        
         }
       }
 
-  // ############################################   temperature sensors
+  // ############################################   READ temperature sensors
 
   tempsensors.requestTemperatures();
   //Serial.println("Temperature is: " + String(tempsensors.getTempCByIndex(0)) + "°C");
@@ -530,7 +570,8 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   TS03 = tempsensors.getTempCByIndex(2);
 
     // Maximum temperature ?
-    if (TS01 > TS_max || TS02 > TS_max || TS01 < -10 || TS02 < -10) {
+    if (TS01 > TS_max || TS02 > TS_max) {
+      
       TS_error = 1; 
       
       Serial.println("Temperature to high"); 
@@ -547,16 +588,10 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   if (millisec - cycle_debug_dt > cycle_debug) {
     cycle_debug_dt = millisec;
 
-    if (debug_level >= 1) {
-
-    }  
-      
-    if (debug_level >= 2) {
+    if (debug_misc == true) {
       Serial.println("duty_cycle:"+String(duty_cycle)); 
     }  
 
-    if (debug_level >= 3) {                    
-    } 
   }
 
 
