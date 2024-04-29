@@ -1,6 +1,7 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
+  29.04.24
 */
 
 // #################################################################### Libray
@@ -18,7 +19,7 @@
 
 // #################################################################### Variables
 
-word debug_level = 2;
+byte debug_level = 1;
 
 float dutycycle = 0.0;
 int dutycycle_int = 0;
@@ -30,17 +31,17 @@ int TS01_int = 0;
 int TS02_int = 0;
 int TS03_int = 0;
 
-int _sends = 0;
-int _reads = 0;
+byte _sends = 0;
+byte _reads = 0;
 
-int word_hour = 0;
-int word_minute = 0;
+byte word_hour = 0;
+byte word_minute = 0;
 
 unsigned long millisec;           // time-ms
 unsigned long cycle_read_pre = 0;
-const unsigned long cycle_read_period = 456;  
+const unsigned long cycle_read_period = 456;  // in ms
 unsigned long cycle_send_pre = 0;
-const unsigned long cycle_send_period = 5000;  
+const unsigned long cycle_send_period = 5000;  // in ms
 
 const int mcutimeout = 300;
 const int mcubaudrate = 1200;
@@ -50,8 +51,12 @@ SoftwareSerial nodemcu(D6, D5);           // Serial conncetion to NodeMCU
 
 unsigned long arduino_time_ms = 0;
 
-const char* ssid = "+++";            // wifi network
-const char* password = "+++";      // wifi network
+//int port = 8888;  //Port number
+//WiFiServer server(port);
+
+const char* ssid = "Pumuckel";            // wifi network
+const char* password = "Stiller_83";      // wifi network
+AsyncWebServer server(80);                // Create AsyncWebServer object on port 8888
 
 byte dummy_state = 0;                      // 0=OFF, 1=ON
 String dummy_state_str = "...";
@@ -80,42 +85,58 @@ unsigned long cycle_1500ms_dt;
 int cycle_500ms = 500;      
 unsigned long cycle_500ms_dt;
 
-AsyncWebServer server(80);                // Create AsyncWebServer object on port 80
-
-
-
-
-
 
 // #################################################################### Functions
 
 String state_ctl_txt(int ctl){
-  String state_ctl_txt = "";
+  String _txt = "";
   switch (ctl) {
     case 0:
-      state_ctl_txt = "Manual OFF";
+      _txt = "Manual OFF";
       break;
     case 1:
-      state_ctl_txt = "Manual ON";
+      _txt = "Manual ON";
       break;
     case 2:
-      state_ctl_txt = "AUTOMATIC";
+      _txt = "AUTOMATIC";
       break;
   }
-  return state_ctl_txt;
+  return _txt;
+}
+
+String state_ctl_led_txt(int ctl){
+  String _txt = "";
+  switch (ctl) {
+    case 0:
+      _txt = "Manual OFF";
+      break;
+    case 1:
+      _txt = "Manual ON";
+      break;
+    case 2:
+      _txt = "18/6 (4-22)";
+      break;
+    case 3:
+      _txt = "12/12 (8-20)";
+      break;
+    case 4:
+      _txt = "ARRAY";
+      break;      
+  }
+  return _txt;
 }
 
 String state_txt(int state){
-  String state_txt = "";
+  String _txt = "";
   switch (state) {
     case 0:
-      state_txt = "OFF";
+      _txt = "OFF";
       break;
     case 1:
-      state_txt = "ON";
+      _txt = "ON";
       break;
   }
-  return state_txt;
+  return _txt;
 }
 
 // Get-functions for collecting the data from the arduino and display it on the webserver
@@ -201,6 +222,7 @@ String processor(const String& var){
   else if (var == "word_minute"){
     return getwordminute();
   }
+  return "not_valid";
 }
 
 
@@ -221,6 +243,7 @@ void setup(){
 
 // ######################## Wifi
 
+  //WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -229,17 +252,16 @@ void setup(){
   // Print ESP32 Local IP Address
   Serial.println(WiFi.localIP());
 
-
 // ######################## Webserver GUI
 
-  // Load style.css file
+  Serial.println("Start programme");
   
+  // Load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/style.css", "text/css");
   });
 
   // Called when <IP>/ browsed (Refresh button)
-  
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
@@ -285,11 +307,19 @@ void setup(){
     led_state_ctl = 1;
     request->send(SPIFFS, "/index.html", String(), false, processor);
   }); 
-  server.on("/b3_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
+  server.on("/b3_1806", HTTP_GET, [](AsyncWebServerRequest *request){  
     request->send(SPIFFS, "/index.html", String(), false, processor);
     led_state_ctl = 2;
   });
-
+  server.on("/b3_1212", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    led_state_ctl = 3;
+  });
+    server.on("/b3_array", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    led_state_ctl = 4;
+  });
+  
   // ventilator state Button
   
   server.on("/b4_off", HTTP_GET, [](AsyncWebServerRequest *request){  
@@ -325,7 +355,7 @@ void loop(){
     DeserializationError error = deserializeJson(rxdoc, nodemcu);
 
     if (error) {
-      if (debug_level >= 2) {
+      if (debug_level >= 1) {
         Serial.print(F("deserializeJson() failed: "));
         Serial.println(error.f_str());       
       }
@@ -365,19 +395,24 @@ void loop(){
       }
     }
     
-// ############################ Buttons 
+    // ############################ Buttons 
 
     dummy_state_ctl_str       = state_ctl_txt(dummy_state_ctl);
     pipevent_state_ctl_str    = state_ctl_txt(pipevent_state_ctl);
-    led_state_ctl_str         = state_ctl_txt(led_state_ctl);
+    led_state_ctl_str         = state_ctl_led_txt(led_state_ctl);
     ventilator_state_ctl_str  = state_ctl_txt(ventilator_state_ctl);
 
-// ############################ States from Arduino 
+    // ############################ States from Arduino 
 
     dummy_state_str       = state_txt(dummy_state);
     pipevent_state_str    = state_txt(pipevent_state);
     led_state_str         = state_txt(led_state);
     ventilator_state_str  = state_txt(ventilator_state);
+
+    if (debug_level >= 2) {
+      Serial.print(pipevent_state_str+","+String(pipevent_state));                  
+      Serial.print("\n");               
+    }    
        
   }
   
