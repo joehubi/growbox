@@ -13,13 +13,14 @@
 
 #include <Wire.h>               // https://www.arduino.cc/en/Reference/Wire
 
-#include <SoftwareSerial.h>     //https://www.arduino.cc/en/Reference/SoftwareSerial
-#include <ArduinoJson.h>        //https://github.com/bblanchon/ArduinoJson
+//#include <SoftwareSerial.h>     //https://www.arduino.cc/en/Reference/SoftwareSerial
+//#include <ArduinoJson.h>        //https://github.com/bblanchon/ArduinoJson
 
+#define SLAVE_ADDRESS 9
 
 // #################################################################### Variables
 
-byte debug_level = 1;
+byte debug_level = 0;
 
 float dutycycle = 0.0;
 int dutycycle_int = 0;
@@ -31,25 +32,19 @@ int TS01_int = 0;
 int TS02_int = 0;
 int TS03_int = 0;
 
-byte _sends = 0;
-byte _reads = 0;
-
 byte word_hour = 0;
 byte word_minute = 0;
 
 unsigned long millisec;           // time-ms
 unsigned long cycle_read_pre = 0;
-const unsigned long cycle_read_period = 456;  // in ms
+const unsigned long cycle_read_period = 5000;  // in ms
 unsigned long cycle_send_pre = 0;
-const unsigned long cycle_send_period = 5000;  // in ms
+const unsigned long cycle_send_period = 2000;  // in ms
 
-const int mcutimeout = 300;
-const int mcubaudrate = 1200;
-const int txbuffer = 150;
-const int rxbuffer = 500;
-SoftwareSerial nodemcu(D6, D5);           // Serial conncetion to NodeMCU
-
-unsigned long arduino_time_ms = 0;
+//const int mcutimeout = 300;
+//const int mcubaudrate = 1200;
+//const int txbuffer = 150;
+//const int rxbuffer = 500;
 
 //int port = 8888;  //Port number
 //WiFiServer server(port);
@@ -78,12 +73,18 @@ String ventilator_state_str = "...";
 byte ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
 String ventilator_state_ctl_str = "...";
 
-// Timer for timed loops
-int cycle_1500ms = 1000;      
-unsigned long cycle_1500ms_dt;
+const byte data_bytes_to_slave = 4;
+const byte data_bytes_request_from_slave = 14;
 
-int cycle_500ms = 500;      
-unsigned long cycle_500ms_dt;
+byte data_to_slave[data_bytes_to_slave]; // Array zur Speicherung der Werte
+byte data_request[data_bytes_request_from_slave]; // Array zur Speicherung der empfangenen Daten
+
+// Timer for timed loops
+//int cycle_1500ms = 1000;      
+//unsigned long cycle_1500ms_dt;
+
+//int cycle_500ms = 500;      
+//unsigned long cycle_500ms_dt;
 
 
 // #################################################################### Functions
@@ -139,16 +140,6 @@ String state_txt(int state){
   return _txt;
 }
 
-// Get-functions for collecting the data from the arduino and display it on the webserver
-String gettime() {
-  return String(arduino_time_ms);
-}
-String getsends() {
-  return String(_sends);
-}
-String getreads() {
-  return String(_reads);
-}
 String getTS01() {
   return String(TS01);
 }
@@ -207,15 +198,6 @@ String processor(const String& var){
   else if (var == "dutycycle"){
     return getdutycycle();
   }    
-  else if (var == "arduino_time_ms"){
-    return gettime();
-  }
-  else if (var == "_reads"){
-    return getreads();
-  }
-  else if (var == "_sends"){
-    return getsends();
-  }
   else if (var == "word_hour"){
     return getwordhour();
   }
@@ -230,9 +212,7 @@ String processor(const String& var){
 
 void setup(){
 
-  nodemcu.setTimeout(mcutimeout);
-  nodemcu.begin(mcubaudrate);    // set low baud rate due to json communication
-
+  Wire.begin(D5, D6);   // Initialisierung des I2C - D5 (SDA) und D6 (SCL) für I2C
   Serial.begin(9600);   // for serial output in window / debugging
    
   // Initialize SPIFFS (for web server)
@@ -350,50 +330,48 @@ void loop(){
 
   if ((millisec - cycle_read_pre > cycle_read_period)) {
     cycle_read_pre = millisec; 
-  
-    StaticJsonDocument<rxbuffer> rxdoc;
-    DeserializationError error = deserializeJson(rxdoc, nodemcu);
 
-    if (error) {
-      if (debug_level >= 1) {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.f_str());       
-      }
+    // Sende eine Anfrage an den Slave
+    Serial.println("Request data on I2C from SLAVE");
+    
+    Wire.requestFrom(SLAVE_ADDRESS, data_bytes_request_from_slave); // Fordere X Bytes vom Slave an
+
+    while(Wire.available() < data_bytes_request_from_slave) {
+      // Warte, bis alle Bytes empfangen wurden
+      delay(1);
     }
-      else {
-        if (rxdoc.isNull() || rxdoc.memoryUsage() < 284) {       
-        } else {
-          arduino_time_ms = rxdoc["time"];              // extract time from arduino   
-          TS01_int = rxdoc["data"][0];                      // extract data
-          TS02_int = rxdoc["data"][1];
-          TS03_int = rxdoc["data"][2];
-          dutycycle_int = rxdoc["data"][3];
-          
-          TS01 = float(TS01_int)/10;
-          TS02 = float(TS02_int)/10;
-          TS03 = float(TS03_int)/10;      
-          dutycycle = float(dutycycle_int)/10; 
-             
-          dummy_state =       rxdoc["state"][0];        
-          pipevent_state =    rxdoc["state"][1];
-          led_state =         rxdoc["state"][2];
-          ventilator_state =  rxdoc["state"][3];
 
-          word_hour =         rxdoc["rtc_time"][0];
-          word_minute =       rxdoc["rtc_time"][1];
-         
-          _reads++;
-
-          if (debug_level >= 1) {           
-            serializeJson(rxdoc, Serial);     
-            Serial.print("\n");   
-          }         
-          if (debug_level >= 2) {
-            Serial.print("###READ### rx-buffer: "+String(rxdoc.size())+","+String(sizeof(rxdoc))+","+String(rxdoc.memoryUsage()));            // Debugging      
-            Serial.print("\n");               
-          }    
-      }
+    // Werte in Array schreiben
+    int i = 0;
+    while(Wire.available()) {
+      // Empfange die Daten vom Slave und schreibe sie in das Array
+      data_request[i] = Wire.read();
+      Serial.print("Value ");
+      Serial.print(i);
+      Serial.print(": ");
+      Serial.println(data_request[i]);
+      i++;
     }
+
+    // Byte in Integer umwandeln
+    TS01_int =      (data_request[1] << 8) | data_request[0];  // Low-Byte und High-Byte zusammenfügen
+    TS02_int =      (data_request[3] << 8) | data_request[2];
+    TS03_int =      (data_request[5] << 8) | data_request[4];
+    dutycycle_int = (data_request[7] << 8) | data_request[6];
+
+    // Integer in Float umwandeln
+    TS01 = float(TS01_int)/10;
+    TS02 = float(TS02_int)/10;
+    TS03 = float(TS03_int)/10;  
+    dutycycle = float(dutycycle_int)/10; 
+
+    // States zuweisen
+    dummy_state =       data_request[8];      
+    pipevent_state =    data_request[9];
+    led_state =         data_request[10];
+    ventilator_state =  data_request[11];
+    word_hour =         data_request[12];
+    word_minute =       data_request[13];
     
     // ############################ Buttons 
 
@@ -408,41 +386,27 @@ void loop(){
     pipevent_state_str    = state_txt(pipevent_state);
     led_state_str         = state_txt(led_state);
     ventilator_state_str  = state_txt(ventilator_state);
-
-    if (debug_level >= 2) {
-      Serial.print(pipevent_state_str+","+String(pipevent_state));                  
-      Serial.print("\n");               
-    }    
-       
+            
   }
   
 // ############################ SEND 
 
   if ((millisec - cycle_send_pre > cycle_send_period)) {
     cycle_send_pre = millisec;
-    
-    StaticJsonDocument<txbuffer> txdoc;
+
+    Serial.println("Send data on I2C to SLAVE");
   
-    txdoc["growbox"] = "to_Arduino";
-    JsonArray state = txdoc.createNestedArray("switches");      // Add state array
-    state.add(dummy_state_ctl);                                           // Put data in array
-    state.add(pipevent_state_ctl);
-    state.add(led_state_ctl);
-    state.add(ventilator_state_ctl);
-     
-    //Send data to Arduino
-    serializeJson(txdoc, nodemcu);
+    // Bytes in das Datenarray schreiben
+    data_to_slave[0] = dummy_state_ctl;
+    data_to_slave[1] = pipevent_state_ctl;
+    data_to_slave[2] = led_state_ctl;
+    data_to_slave[3] = ventilator_state_ctl;
+  
+    // Daten an den Bus senden
+    Wire.beginTransmission(SLAVE_ADDRESS);
+    Wire.write(data_to_slave, sizeof(data_to_slave));
+    Wire.endTransmission();
 
-    _sends++;
-
-    if (debug_level >= 1) {            
-      serializeJson(txdoc, Serial);                               
-      Serial.print("\n");
-    }
-    if (debug_level >= 2) {  
-      Serial.print("###SEND### tx-buffer: "+String(txdoc.size())+","+String(sizeof(txdoc))+","+String(txdoc.memoryUsage()));  
-      Serial.print("\n");             
-    }
   }
    
   delay(1);
