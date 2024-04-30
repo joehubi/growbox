@@ -1,22 +1,23 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
+  29.04.2024
 */
 
 // #############################################################  Library
 
 #include <Wire.h>             // Die Datums- und Zeit-Funktionen der DS3231 RTC werden �ber das I2C aufgerufen.
 #include "RTClib.h"           // https://github.com/StephanFink/RTClib/archive/master.zip
-#include <SoftwareSerial.h>   //https://www.arduino.cc/en/Reference/SoftwareSerial
-#include <ArduinoJson.h>      //https://github.com/bblanchon/ArduinoJson
 #include <OneWire.h>
 #include <DallasTemperature.h>
+
+#define SLAVE_ADDRESS 9
+// MASTER = ESP8266
+// SLAVE = ARDUINO
 
 // #############################################################  Debugging Variables
 
 const bool debug_misc = false;
-const bool debug_comm_1 = true;
-const bool debug_comm_2 = true;
 const bool debug_auto = false;
 
 // Interupt-Input for testing the Interupt-Output
@@ -45,7 +46,7 @@ byte dummy_state = 0;      // Simulation
 byte dummy_state_ctl = 2;  // Init to Automatic Mode
 int const dummy_pin = PD2; 
 
-byte pipevent_state = 0;      
+byte pipevent_state = 0;   // 0 = OFF, 1 = ON 
 byte pipevent_state_ctl = 2; 
 int const pipevent_pin = PD3; 
  
@@ -59,18 +60,28 @@ int const ventilator_pin = PD5;
 
 // #############################################################  Variables
 
-const int mcutimeout = 300;
-const int mcubaudrate = 1200;
-const int txbuffer = 150;
-const int rxbuffer = 220;
-const int rx = 6;                       // Receive pin for serial conncetion
-const int tx = 7;                       // Send pin for serial conncetion
-SoftwareSerial nodemcu(rx,tx);    //Initialise serial connection (SC) to NodeMCU
+const byte data_bytes_from_master = 4;
+byte data_from_master[data_bytes_from_master]; // Array zur Speicherung der empfangenen Daten
 
+byte send1 = 0;
+byte send2 = 0;
+byte send3 = 0;
+byte send4 = 0;
+byte send5 = 0;
+byte send6 = 0;
+byte send7 = 0;
+byte send8 = 0;
+byte send9 = 0;
+byte send10 = 0;
+byte send11 = 0;
+byte send12 = 0;
+byte send13 = 0;
+byte send14 = 0;
+  
 RTC_DS3231 rtc;
 
-const bool syncOnFirstStart = false; // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen.
-                              // sollte standardm��ig auf false stehen
+const bool syncOnFirstStart = false;  // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen.
+                                      // sollte standardm��ig auf false stehen
 String timestamp = "dd.mm.yyyy HH:MM:ss";
 
 
@@ -106,12 +117,6 @@ const word led_state_array[96]={
   1   , 1   , 1   , 1   , 1   , 1   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0
   };    // on/off time of LED can be programmed here (0=off, 1=on within one day)
   
-//String day_ = "";
-//String month_ = "";
-//String hour_ = "";
-//String minute_ = "";
-//String second_ = "";
-
 // Interupt-Output interrupt for pipe ventilator
 double duty_cycle = 0.0;     // This duty cycle is present on pin 9 and inverted on Pin 10
 int duty_cycle_int = 0;    
@@ -139,9 +144,9 @@ const int cycle_debug = 3000;
 unsigned long cycle_debug_dt;
 
 unsigned long timer_read_pre = 0;
-const unsigned long timer_read_period = 678;  
-unsigned long timer_send_pre = 0;
-const unsigned long timer_send_period = 5000;  
+const unsigned long timer_read_period = 2000;  
+//unsigned long timer_send_pre = 0;
+//const unsigned long timer_send_period = 5000;  
 
 unsigned long millisec;           // arduino time-ms
 
@@ -168,6 +173,9 @@ String add_null(String input) {
 
 void setup(void){
 
+  Wire.begin(SLAVE_ADDRESS); // I2C default nur auf SDA und SCL Pin's des Arduino
+  Wire.onReceive(receiveEvent); // MASTER schickt Daten an SLAVE
+  Wire.onRequest(requestEvent); // MASTER fordert Daten an SLAVE
   Serial.begin(9600);   // Debugging/print  
   delay(500);
   
@@ -185,10 +193,10 @@ void setup(void){
 
 // ############################  NodeMCU
 
-  nodemcu.setTimeout(mcutimeout);
-  nodemcu.begin(mcubaudrate);
-  pinMode(tx, OUTPUT);    // Serial interface to NodeMCU
-  pinMode(rx, INPUT);     // Serial interface to NodeMCU
+  //nodemcu.setTimeout(mcutimeout);
+  //nodemcu.begin(mcubaudrate);
+  //pinMode(tx, OUTPUT);    // Serial interface to NodeMCU
+  //pinMode(rx, INPUT);     // Serial interface to NodeMCU
   delay(500);
 
 // ############################  Temperature sensors
@@ -198,10 +206,10 @@ void setup(void){
   
 // ############################  RTC
 
-//  if (! rtc.begin()) {
-//    Serial.println("RTC can not be initialized");
-//    while (1);
-//  }
+  if (! rtc.begin()) {
+    Serial.println("RTC can not be initialized");
+    while (1);
+  }
 
   // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
   // rtc.adjust(DateTime(2023, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss
@@ -390,49 +398,6 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   // ###### End 1500 ms
   }
 
-// ############################################   SEND (5000 ms)
-  
-// Send all relevant data to the webserver to view it in a browser
-    
-  if ((millisec - timer_send_pre > timer_send_period)) {
-    timer_send_pre = millisec;
-    
-    TS01_int = TS01*10;
-    TS02_int = TS02*10;
-    TS03_int = TS03*10;
-    duty_cycle_int = duty_cycle*10;
-        
-    StaticJsonDocument<txbuffer> txdoc;
-
-    txdoc["growbox"] = "to NodeMCU";
-    txdoc["time"] = millisec;      // send arduino time to NodeMCU
-
-    JsonArray data = txdoc.createNestedArray("data");       // Add data array
-    data.add(TS01_int);     // Add data ...
-    data.add(TS02_int);
-    data.add(TS03_int);
-    data.add(duty_cycle_int);
-    JsonArray state = txdoc.createNestedArray("state");         // Add state array
-    state.add(dummy_state); // Add data ...  
-    state.add(pipevent_state); 
-    state.add(led_state);  
-    state.add(ventilator_state);  
-    JsonArray rtc_time = txdoc.createNestedArray("rtc_time");         // Add time array
-    rtc_time.add(_hour);  
-    rtc_time.add(_minute);  
-
-    //Send data to NodeMCU
-    serializeJson(txdoc, nodemcu);
-
-    if (debug_comm_1 == true) {
-      serializeJson(txdoc, Serial);                                
-      Serial.print("\n");     
-    }
-    if (debug_comm_2 == true) {
-      Serial.print("###SEND### tx-buffer: "+String(txdoc.size())+","+String(sizeof(txdoc))+","+String(txdoc.memoryUsage()));
-      Serial.print("\n");     
-    }
-  }
 
 // ############################################   1000 ms
 
@@ -460,7 +425,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         duty_cycle = 80.0;
         break;
       case 2:
-        pipevent_state = 2; 
+        pipevent_state = 1; 
         
         // min. Output
         if (duty_cycle < duty_cycle_min) {
@@ -498,68 +463,13 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     vent_minute = _minute;
     led_minute = _minute;
 
-//    Serial.print("###TIME### "+String(_hour)+":"+String(_minute));
-//    Serial.print("\n");
-      
-//    day_ = String(now.day());    
-//    month_ = String(now.month());
-//    hour_ = String(now.hour());
-//    minute_ = String(now.minute());
-//    second_ = String(now.second());
-//       
-//    day_ = add_null(day_);
-//    month_ = add_null(month_);
-//    // year (not neccesary) 
-//    hour_ = add_null(hour_);
-//    minute_ = add_null(minute_);
-//    second_ = add_null(second_);
-//     
-//    timestamp = day_+"."
-//                +month_+"."
-//                +String(now.year())
-//                +" "
-//                +hour_+":"
-//                +minute_+":"
-//                +second_;
-//    Serial.println(timestamp);
   }
 
 
-// ############################################   READ NodeMCU
-
-// Reads the switches from the NodeMCU (webserver) via Tx/Rx
+// ############################################   READ
 
   if ((millisec - timer_read_pre > timer_read_period)) {
   timer_read_pre = millisec;
-
-  StaticJsonDocument<rxbuffer> rxdoc;
-  DeserializationError error = deserializeJson(rxdoc, nodemcu);
- 
-  if (error) {
-    if (debug_comm_1 == true) {
-      Serial.print(F("deserializeJson() failed: "));
-      Serial.println(error.f_str());
-      }    
-    }
-    else {
-      if (rxdoc.isNull() || rxdoc.memoryUsage() < 76) {       
-        } else {
-          
-          dummy_state_ctl =       rxdoc["switches"][0];    // Get data from array
-          pipevent_state_ctl =    rxdoc["switches"][1];
-          led_state_ctl =         rxdoc["switches"][2];
-          ventilator_state_ctl =  rxdoc["switches"][3];
-                    
-          if (debug_comm_1 == true) {
-            serializeJson(rxdoc, Serial);                                
-            Serial.print("\n");
-          }         
-          if (debug_comm_2 == true) {
-            Serial.print("###READ### rx-buffer: "+String(rxdoc.size())+","+String(sizeof(rxdoc))+","+String(rxdoc.memoryUsage()));  
-            Serial.print("\n");
-          }        
-        }
-      }
 
   // ############################################   READ temperature sensors
 
@@ -572,7 +482,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     // Maximum temperature ?
     if (TS01 > TS_max || TS02 > TS_max) {
       
-      TS_error = 1; 
+      //TS_error = 1; 
       
       Serial.println("Temperature to high"); 
       Serial.println("TS_max:"+String(TS_max)); 
@@ -594,9 +504,100 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
   }
 
+  // digitalWrite(LED_BUILTIN, state);     // Debuggin / switch LED for interrupt testing   
 
 //  ##############################################################  End of loop 
 
-   // digitalWrite(LED_BUILTIN, state);     // Debuggin / switch LED for interrupt testing   
+}
+
+
+//  ##############################################################  Data RECEIVE from MASTER
+
+void receiveEvent(int bytes) {
+  //Serial.println("Data RECEIVE from MASTER");
+
+  // Stelle sicher, dass die richtige Anzahl an Bytes empfangen wurde
+  if (bytes == data_bytes_from_master) {
+
+    // Lese die empfangenen Daten in das Array
+    for (int i = 0; i < bytes; i++) {
+      data_from_master[i] = Wire.read();
+    }
+
+    dummy_state_ctl =       data_from_master[0];   
+    pipevent_state_ctl =    data_from_master[1];
+    led_state_ctl =         data_from_master[2];
+    ventilator_state_ctl =  data_from_master[3];
+    
+    // Zeige die Werte im Serial Monitor an
+    //Serial.print("Received control: ");
+    //Serial.print(dummy_state_ctl);
+    //Serial.print(", ");
+    //Serial.print(pipevent_state_ctl);
+    //Serial.print(", ");
+    //Serial.print(led_state_ctl);
+    //Serial.print(", ");
+    //Serial.println(ventilator_state_ctl);
+    
+  }
+  
+  // Setze alle Werte im Array auf 0
+  for (int i = 0; i < data_bytes_from_master; i++) {
+    data_from_master[i] = 0;
+  }
+  
+}
+
+//  ##############################################################  Data REQUEST from MASTER
+
+void requestEvent() {
+  //Serial.println("Data REQUEST from MASTER");
+
+  // 4 x Integer (je 2 Bytes)
+  // 6 x Byte 
+  // -> Insgesamt 14 Bytes
+
+  // Float in Integer umwandeln
+  TS01_int = TS01*10;
+  TS02_int = TS02*10;
+  TS03_int = TS03*10;
+  duty_cycle_int = duty_cycle*10;
+    
+  // Integer in Byte umwandeln für die Übertragung per I2C
+  send1 = lowByte(TS01_int); 
+  send2 = highByte(TS01_int);
+  send3 = lowByte(TS02_int); 
+  send4 = highByte(TS02_int);
+  send5 = lowByte(TS03_int); 
+  send6 = highByte(TS03_int);
+  send7 = lowByte(duty_cycle_int); 
+  send8 = highByte(duty_cycle_int);
+  send9 =   dummy_state;
+  send10 =  pipevent_state;
+  send11 =  led_state;
+  send12 =  ventilator_state;
+  send13 =  _hour;
+  send14 =  _minute;
+
+  //Serial.print("Send data to MASTER:");
+  //Serial.print(send13);
+  //Serial.print(", ");
+  //Serial.println(send14);
    
+  // Sende Daten an den Master
+  Wire.write(send1);
+  Wire.write(send2);
+  Wire.write(send3);
+  Wire.write(send4);
+  Wire.write(send5);
+  Wire.write(send6);
+  Wire.write(send7);
+  Wire.write(send8);
+  Wire.write(send9);
+  Wire.write(send10);
+  Wire.write(send11);
+  Wire.write(send12);
+  Wire.write(send13);
+  Wire.write(send14);
+
 }
