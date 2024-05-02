@@ -1,7 +1,7 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  29.04.24
+  02.05.24
 */
 
 // #################################################################### Libray
@@ -32,6 +32,8 @@ int TS01_int = 0;
 int TS02_int = 0;
 int TS03_int = 0;
 
+int debocap_percentage = 0; // 0..100 % Bodenfeuchte
+
 byte word_hour = 0;
 byte word_minute = 0;
 
@@ -40,11 +42,6 @@ unsigned long cycle_read_pre = 0;
 const unsigned long cycle_read_period = 5000;  // in ms
 unsigned long cycle_send_pre = 0;
 const unsigned long cycle_send_period = 2000;  // in ms
-
-//const int mcutimeout = 300;
-//const int mcubaudrate = 1200;
-//const int txbuffer = 150;
-//const int rxbuffer = 500;
 
 //int port = 8888;  //Port number
 //WiFiServer server(port);
@@ -74,18 +71,12 @@ byte ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=
 String ventilator_state_ctl_str = "...";
 
 const byte data_bytes_to_slave = 4;
-const byte data_bytes_request_from_slave = 14;
+const byte data_bytes_request_from_slave = 17;
 
 byte data_to_slave[data_bytes_to_slave]; // Array zur Speicherung der Werte
 byte data_request[data_bytes_request_from_slave]; // Array zur Speicherung der empfangenen Daten
 
-// Timer for timed loops
-//int cycle_1500ms = 1000;      
-//unsigned long cycle_1500ms_dt;
-
-//int cycle_500ms = 500;      
-//unsigned long cycle_500ms_dt;
-
+byte msg_req_feedback = 0;
 
 // #################################################################### Functions
 
@@ -152,11 +143,17 @@ String getTS03() {
 String getdutycycle() {
   return String(dutycycle);
 }
+String getdebocap_percentage() {
+  return String(debocap_percentage);
+}
 String getwordhour() {
   return String(word_hour);
 }
 String getwordminute() {
   return String(word_minute);
+}
+String getmsg_req_feedback() {
+  return String(msg_req_feedback);
 }
 
 // Multiplex processor for all data variables 
@@ -197,12 +194,18 @@ String processor(const String& var){
   }
   else if (var == "dutycycle"){
     return getdutycycle();
-  }    
+  }
+  else if (var == "debocap_percentage"){
+    return getdebocap_percentage();
+  }       
   else if (var == "word_hour"){
     return getwordhour();
   }
   else if (var == "word_minute"){
     return getwordminute();
+  }
+  else if (var == "msg_req_feedback"){
+    return getmsg_req_feedback();
   }
   return "not_valid";
 }
@@ -358,7 +361,8 @@ void loop(){
     TS02_int =      (data_request[3] << 8) | data_request[2];
     TS03_int =      (data_request[5] << 8) | data_request[4];
     dutycycle_int = (data_request[7] << 8) | data_request[6];
-
+    debocap_percentage = (data_request[15] << 8) | data_request[14];
+    
     // Integer in Float umwandeln
     TS01 = float(TS01_int)/10;
     TS02 = float(TS02_int)/10;
@@ -372,6 +376,8 @@ void loop(){
     ventilator_state =  data_request[11];
     word_hour =         data_request[12];
     word_minute =       data_request[13];
+    // Feedback counter
+    msg_req_feedback =  data_request[16];
     
     // ############################ Buttons 
 
