@@ -19,6 +19,7 @@
 
 const bool debug_misc = false;
 const bool debug_auto = false;
+const bool no_RTC = true;
 
 // Interupt-Input for testing the Interupt-Output
 //const byte interruptPin = 2;      // Debugging
@@ -39,6 +40,16 @@ int TS03_int = 0;
 
 const int TS_max = 50;
 int TS_error = 0;
+
+// #############################################################  Soil Humuditiy sensor
+
+const int debocap_pin = A0;
+int debocap_percentage = 0;
+  
+const int debocap_dry_air = 635;      // 3,3 V und lange Leitung
+//const int debocap_normal_soil = 429;  // 3,3 V und kurze Leitung
+//const int debocap_wet_soil = 255;     // 3,3 V und kurze Leitung
+const int debocap_water = 258;        // 3,3 V und lange Leitung
 
 // #############################################################  Actuators
 
@@ -63,6 +74,9 @@ int const ventilator_pin = PD5;
 const byte data_bytes_from_master = 4;
 byte data_from_master[data_bytes_from_master]; // Array zur Speicherung der empfangenen Daten
 
+byte msg_req_cnt = 0;
+
+byte send0 = 0;
 byte send1 = 0;
 byte send2 = 0;
 byte send3 = 0;
@@ -77,7 +91,9 @@ byte send11 = 0;
 byte send12 = 0;
 byte send13 = 0;
 byte send14 = 0;
-  
+byte send15 = 0;
+byte send16 = 0;
+   
 RTC_DS3231 rtc;
 
 const bool syncOnFirstStart = false;  // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen.
@@ -191,12 +207,6 @@ void setup(void){
   digitalWrite(led_pin, LOW);
   digitalWrite(ventilator_pin, LOW);
 
-// ############################  NodeMCU
-
-  //nodemcu.setTimeout(mcutimeout);
-  //nodemcu.begin(mcubaudrate);
-  //pinMode(tx, OUTPUT);    // Serial interface to NodeMCU
-  //pinMode(rx, INPUT);     // Serial interface to NodeMCU
   delay(500);
 
 // ############################  Temperature sensors
@@ -206,9 +216,13 @@ void setup(void){
   
 // ############################  RTC
 
+  if (no_RTC == true) {
+    
+  }
+  
   if (! rtc.begin()) {
     Serial.println("RTC can not be initialized");
-    while (1);
+    //while (1);
   }
 
   // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
@@ -471,26 +485,46 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   if ((millisec - timer_read_pre > timer_read_period)) {
   timer_read_pre = millisec;
 
-  // ############################################   READ temperature sensors
+    // ############################################   READ temperature sensors
 
-  tempsensors.requestTemperatures();
-  //Serial.println("Temperature is: " + String(tempsensors.getTempCByIndex(0)) + "°C");
-  TS01 = tempsensors.getTempCByIndex(0);
-  TS02 = tempsensors.getTempCByIndex(1);
-  TS03 = tempsensors.getTempCByIndex(2);
+    tempsensors.requestTemperatures();
+    //Serial.println("Temperature is: " + String(tempsensors.getTempCByIndex(0)) + "°C");
+    TS01 = tempsensors.getTempCByIndex(0);
+    TS02 = tempsensors.getTempCByIndex(1);
+    TS03 = tempsensors.getTempCByIndex(2);
 
-    // Maximum temperature ?
-    if (TS01 > TS_max || TS02 > TS_max) {
-      
-      //TS_error = 1; 
-      
-      Serial.println("Temperature to high"); 
-      Serial.println("TS_max:"+String(TS_max)); 
-      Serial.println("TS01:"+String(TS01));
-      Serial.println("TS02:"+String(TS02));
-      Serial.println("TS03:"+String(TS03));
-      Serial.print("\n"); 
-    }
+    //Serial.println("Temperatures"); 
+    //Serial.println("TS01: "+String(TS01));
+    //Serial.println("TS02: "+String(TS02));
+    //Serial.println("TS03: "+String(TS03));
+  
+      // Maximum temperature ?
+      if (TS01 > TS_max || TS02 > TS_max) {
+        
+        //TS_error = 1; 
+        
+        Serial.println("Temperature to high"); 
+        Serial.println("TS_max:"+String(TS_max)); 
+        Serial.println("TS01:"+String(TS01));
+        Serial.println("TS02:"+String(TS02));
+        Serial.println("TS03:"+String(TS03));
+        Serial.print("\n"); 
+      }
+
+    // Lese den analogen Wert vom Sensor
+    int debocap_value = analogRead(debocap_pin);
+  
+    // Konvertiere den analogen Wert in eine Bodenfeuchte-Prozentzahl
+    debocap_percentage = map(debocap_value, debocap_water, debocap_dry_air, 100, 0);
+  
+    // Gib den Bodenfeuchte-Prozentsatz über die serielle Schnittstelle aus
+    //Serial.print("Bodenfeuchte: ");
+    //Serial.print(debocap_percentage);
+    //Serial.println(" %");
+    //Serial.print("Sensor-Spannung: ");
+    //Serial.print(debocap_value);
+    //Serial.println(" V");
+  
   }
   
 //  ##############################################################  Debug 
@@ -553,38 +587,50 @@ void receiveEvent(int bytes) {
 void requestEvent() {
   //Serial.println("Data REQUEST from MASTER");
 
-  // 4 x Integer (je 2 Bytes)
+  msg_req_cnt++;
+  Serial.println("Message Request Counter: "+String(msg_req_cnt));
+  
+  // 5 x Integer (je 2 Bytes)
   // 6 x Byte 
-  // -> Insgesamt 14 Bytes
+  // -> Insgesamt 16 Bytes
 
   // Float in Integer umwandeln
   TS01_int = TS01*10;
   TS02_int = TS02*10;
   TS03_int = TS03*10;
   duty_cycle_int = duty_cycle*10;
+  
+  //Serial.println("Temperatures (INT)"); 
+  //Serial.println("TS01: "+String(TS01_int));
+  //Serial.println("TS02: "+String(TS02_int));
+  //Serial.println("TS03: "+String(TS03_int));
     
   // Integer in Byte umwandeln für die Übertragung per I2C
-  send1 = lowByte(TS01_int); 
-  send2 = highByte(TS01_int);
-  send3 = lowByte(TS02_int); 
-  send4 = highByte(TS02_int);
-  send5 = lowByte(TS03_int); 
-  send6 = highByte(TS03_int);
-  send7 = lowByte(duty_cycle_int); 
-  send8 = highByte(duty_cycle_int);
-  send9 =   dummy_state;
-  send10 =  pipevent_state;
-  send11 =  led_state;
-  send12 =  ventilator_state;
-  send13 =  _hour;
-  send14 =  _minute;
-
+  send0 = lowByte(TS01_int); 
+  send1 = highByte(TS01_int);
+  send2 = lowByte(TS02_int); 
+  send3 = highByte(TS02_int);
+  send4 = lowByte(TS03_int); 
+  send5 = highByte(TS03_int);
+  send6 = lowByte(duty_cycle_int); 
+  send7 = highByte(duty_cycle_int);
+  send8 =   dummy_state;
+  send9 =  pipevent_state;
+  send10 =  led_state;
+  send11 =  ventilator_state;
+  send12 =  _hour;
+  send13 =  _minute;
+  send14 = lowByte(debocap_percentage);
+  send15 = highByte(debocap_percentage);
+  send16 = msg_req_cnt;
+  
   //Serial.print("Send data to MASTER:");
   //Serial.print(send13);
   //Serial.print(", ");
   //Serial.println(send14);
    
   // Sende Daten an den Master
+  Wire.write(send0);
   Wire.write(send1);
   Wire.write(send2);
   Wire.write(send3);
@@ -599,5 +645,7 @@ void requestEvent() {
   Wire.write(send12);
   Wire.write(send13);
   Wire.write(send14);
-
+  Wire.write(send15);
+  Wire.write(send16);
+  
 }
