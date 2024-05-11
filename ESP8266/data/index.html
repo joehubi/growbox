@@ -2,6 +2,7 @@
 <!-- 
   Johannes Huber
   https://github.com/joehubi/growbox
+  10.05.2024
 -->
 <html>
 <head>
@@ -69,20 +70,26 @@
 		</p>
 		-->
 		<p>
-			Pipe ventilator:
+			Pipe ventilator state:
 			<span
 				class="label_1">
 				%pipevent_state_str% (%pipevent_state_ctl_str%)
 			</span>
-			dutycycle:
+			<a href="/b21_on"><button class="button_small">ON</button></a>
+			<a href="/b21_off"><button class="button_small button2">OFF</button></a>
+			<a href="/b21_on_intervall"><button class="button_small button4">AUTOMATIC</button></a>
+		</p>
+		<p>
+			Pipe ventilator dutycycle:
 			<span
 				class="label_1"
 				id="dutycycle">
 				%dutycycle%
 			</span>		
-			<a href="/b2_on"><button class="button_small">ON</button></a>
-			<a href="/b2_off"><button class="button_small button2">OFF</button></a>
-			<a href="/b2_auto"><button class="button_small button4">AUTOMATIC</button></a>
+			<a href="/b22_15"><button class="button_small">15</button></a>
+			<a href="/b22_30"><button class="button_small">30</button></a>
+			<a href="/b22_50"><button class="button_small">50</button></a>
+			<a href="/b22_80"><button class="button_small">80</button></a>		
 		</p>
 		<p>
 			LED:
