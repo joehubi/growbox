@@ -1,7 +1,7 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  29.04.2024
+  10.05.2024
 */
 
 // #############################################################  Library
@@ -39,7 +39,6 @@ int TS02_int = 0;
 int TS03_int = 0;         
 
 const int TS_max = 50;
-int TS_error = 0;
 
 // #############################################################  Soil Humuditiy sensor
 
@@ -53,12 +52,14 @@ const int debocap_water = 258;        // 3,3 V und lange Leitung
 
 // #############################################################  Actuators
 
-byte dummy_state = 0;      // Simulation
-byte dummy_state_ctl = 2;  // Init to Automatic Mode
+byte dummy_state = 0;       // Simulation
+byte dummy_state_ctl = 2;  
 int const dummy_pin = PD2; 
 
-byte pipevent_state = 0;   // 0 = OFF, 1 = ON 
-byte pipevent_state_ctl = 2; 
+byte pipevent_state = 0;           // 0 = OFF, 1 = ON
+byte pipevent_state_ctl = 1;       // 0 = OFF, 1 = ON, 2=AUTOMATIC
+byte pipevent_dutycycle_ctl = 15;  // Duty cycle control (%)
+
 int const pipevent_pin = PD3; 
  
 byte led_state = 0;      
@@ -71,7 +72,7 @@ int const ventilator_pin = PD5;
 
 // #############################################################  Variables
 
-const byte data_bytes_from_master = 4;
+const byte data_bytes_from_master = 5;
 byte data_from_master[data_bytes_from_master]; // Array zur Speicherung der empfangenen Daten
 
 byte msg_req_cnt = 0;
@@ -100,6 +101,10 @@ const bool syncOnFirstStart = false;  // true, falls die Zeitinformationen der R
                                       // sollte standardm��ig auf false stehen
 String timestamp = "dd.mm.yyyy HH:MM:ss";
 
+byte pipevent_minute = 0;
+byte pipevent_minute_pre = 0; 
+byte pipevent_minute_change = 5;
+byte pipevent_minute_count = 0;
 
 byte vent_minute = 0;
 byte vent_minute_pre = 0; 
@@ -134,10 +139,9 @@ const word led_state_array[96]={
   };    // on/off time of LED can be programmed here (0=off, 1=on within one day)
   
 // Interupt-Output interrupt for pipe ventilator
-double duty_cycle = 0.0;     // This duty cycle is present on pin 9 and inverted on Pin 10
+double duty_cycle = 0.0;     // 0-100%. This duty cycle is present on pin 9 and inverted on Pin 10
 int duty_cycle_int = 0;    
-const double duty_cycle_min = 15.0;     
-const double duty_cycle_max = 100.0;     
+
 //int icr_const = 8000;       // -> results in 1 Hz PWM cycle (debugging)
 int icr_const = 7;            // -> results in 1,12 kHz PWM cycle 
 
@@ -165,25 +169,6 @@ const unsigned long timer_read_period = 2000;
 //const unsigned long timer_send_period = 5000;  
 
 unsigned long millisec;           // arduino time-ms
-
-// #############################################################  Functions
-
-/*
-// switch LED
-void blink() {
-  state = !state;
-}
-*/
- 
-/* // Fügt eine "0" bei Dezimal-Werten < 10 ein. z.B. "9" -> "09"
-String add_null(String input) {
-    //Serial.println("Input:"+input+"    Input lenght:"+String(input.length()));
-    if (input.length() == 1) {
-      input = "0"+input;
-    }
-    return input;
-}
-*/
 
 // #############################################################      Setup
 
@@ -278,12 +263,6 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         break;
       case 2:
         // Add code for automation here 
-//        if (dummy_state == 1) {
-//          dummy_state = 0;
-//         }
-//        else {
-//          dummy_state = 1;
-//        }
         break;  
       default:
         break;
@@ -388,27 +367,11 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
  // ############################################   Write hardware outputs
   
-  if (TS_error == 1) {
-                   
-    // Error
-    dummy_state       = 0;
-    pipevent_state    = 0;
-    led_state         = 0;
-    ventilator_state  = 0;
+  digitalWrite(dummy_pin,       dummy_state);
+  digitalWrite(pipevent_pin,    pipevent_state);
+  digitalWrite(led_pin,         led_state);
+  digitalWrite(ventilator_pin,  ventilator_state);  
 
-    digitalWrite(dummy_pin,         0);
-    digitalWrite(pipevent_pin,      0);
-    digitalWrite(led_pin,           0);
-    digitalWrite(ventilator_pin,    0); 
-  }
-    // No error
-  else {
-    digitalWrite(dummy_pin,       dummy_state);
-    digitalWrite(pipevent_pin,    pipevent_state);
-    digitalWrite(led_pin,         led_state);
-    digitalWrite(ventilator_pin,  ventilator_state);  
-  }
-  
   // ###### End 1500 ms
   }
 
@@ -419,40 +382,72 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     cycle_1000ms_dt = millisec;
     
 // ############################################   Pipe ventilator controller
-    T_act = TS01;   
-    T_err = (T_act - T_set);                  // calc error
-    T_i_prev = T_i_prev + T_err;              // integrate
-    duty_cycle = P_ * T_err + i_ * T_i_prev;  // calc output (P-Anteil + I-Anteil)
+    //T_act = TS01;   
+    //T_err = (T_act - T_set);                  // calc error
+    //T_i_prev = T_i_prev + T_err;              // integrate
+    //duty_cycle = P_ * T_err + i_ * T_i_prev;  // calc output (P-Anteil + I-Anteil)
 
 // ############################################   Pipe ventilator output
-
 
     // ############################################   pipe ventilator
 
     switch (pipevent_state_ctl) {
       case 0:
         pipevent_state = 0;
-        duty_cycle = 0.0;
         break;
       case 1:
         pipevent_state = 1;
-        duty_cycle = 80.0;
         break;
       case 2:
-        pipevent_state = 1; 
-        
-        // min. Output
-        if (duty_cycle < duty_cycle_min) {
-          duty_cycle = duty_cycle_min;
+        // At change of minute value
+        // Pipe ventilator should rest every few minutes to decrease heat-cost for growbox
+        if (pipevent_minute != pipevent_minute_pre) {
+          pipevent_minute_pre = pipevent_minute;
+    
+          pipevent_minute_count++;    // add counter
+          Serial.println("pipevent_minute_count: "+String(pipevent_minute_count));
+                
+          if (pipevent_minute_count >= pipevent_minute_change) {
+            //Serial.println("Send pipeventilator to rest to reduce heating cost");
+            Serial.println("pipevent_minute_change: "+String(pipevent_minute_change));
+            
+            // reset counter
+            pipevent_minute_count = 0;
+    
+            // Invertiere den Wert von ...
+            if (pipevent_state == 0) {
+              pipevent_state = 1;
+            }
+            else {
+              pipevent_state = 0;
+            }
+            Serial.println("pipevent_state: "+String(pipevent_state));
+          }
+          
         }
-        // max. Ouput
-        if (duty_cycle > duty_cycle_max) {
-          duty_cycle = duty_cycle_max;
-        }       
-        break;  
-        
-        default:
         break;
+                
+      default:
+      break;
+    }
+
+    switch (pipevent_dutycycle_ctl) {
+      case 15:
+        duty_cycle = 15.0;
+        break;
+      case 30:
+        duty_cycle = 30.0;
+        break;
+      case 50:
+        duty_cycle = 50.0;
+        break;
+      case 80:
+        duty_cycle = 80.0;
+        break;
+                                    
+      default:
+        duty_cycle = 0.0;
+      break;
     }
 
     OCR1A = (duty_cycle/100)*icr_const;     // Send to interrupt-output
@@ -475,6 +470,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
     // Trigger für Statuswechsel (LED / Ventilator updaten)
     vent_minute = _minute;
+    pipevent_minute = _minute;
     led_minute = _minute;
 
   }
@@ -500,8 +496,6 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   
       // Maximum temperature ?
       if (TS01 > TS_max || TS02 > TS_max) {
-        
-        //TS_error = 1; 
         
         Serial.println("Temperature to high"); 
         Serial.println("TS_max:"+String(TS_max)); 
@@ -558,11 +552,12 @@ void receiveEvent(int bytes) {
       data_from_master[i] = Wire.read();
     }
 
-    dummy_state_ctl =       data_from_master[0];   
-    pipevent_state_ctl =    data_from_master[1];
-    led_state_ctl =         data_from_master[2];
-    ventilator_state_ctl =  data_from_master[3];
-    
+    dummy_state_ctl =         data_from_master[0];   
+    pipevent_state_ctl =      data_from_master[1];
+    led_state_ctl =           data_from_master[2];
+    ventilator_state_ctl =    data_from_master[3];
+    pipevent_dutycycle_ctl =  data_from_master[4];
+        
     // Zeige die Werte im Serial Monitor an
     //Serial.print("Received control: ");
     //Serial.print(dummy_state_ctl);
