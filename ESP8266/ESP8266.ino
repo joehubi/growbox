@@ -1,7 +1,7 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  02.05.24
+  10.05.24
 */
 
 // #################################################################### Libray
@@ -13,10 +13,8 @@
 
 #include <Wire.h>               // https://www.arduino.cc/en/Reference/Wire
 
-//#include <SoftwareSerial.h>     //https://www.arduino.cc/en/Reference/SoftwareSerial
-//#include <ArduinoJson.h>        //https://github.com/bblanchon/ArduinoJson
-
 #define SLAVE_ADDRESS 9
+#define TIMEOUT_MS 5000         // Timeout in Millisekunden
 
 // #################################################################### Variables
 
@@ -55,10 +53,11 @@ String dummy_state_str = "...";
 byte dummy_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
 String dummy_state_ctl_str = "...";
 
-byte pipevent_state = 0;                      // 0=OFF, 1=ON
+byte pipevent_state = 0;                   // 0=OFF, 1=ON
 String pipevent_state_str = "...";
-byte pipevent_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+byte pipevent_state_ctl = 2;               // 0=OFF, 1=ON, 2=Intervall
 String pipevent_state_ctl_str = "...";
+byte pipevent_dutycycle_ctl = 15;          // Duty cycle control (%)
 
 byte led_state = 0;                      // 0=OFF, 1=ON
 String led_state_str = "...";
@@ -70,7 +69,7 @@ String ventilator_state_str = "...";
 byte ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
 String ventilator_state_ctl_str = "...";
 
-const byte data_bytes_to_slave = 4;
+const byte data_bytes_to_slave = 5;
 const byte data_bytes_request_from_slave = 17;
 
 byte data_to_slave[data_bytes_to_slave]; // Array zur Speicherung der Werte
@@ -267,19 +266,37 @@ void setup(){
 
   // Pipe ventilator state Button
   
-  server.on("/b2_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+  server.on("/b21_off", HTTP_GET, [](AsyncWebServerRequest *request){  
     pipevent_state_ctl = 0;
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
-  server.on("/b2_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+  server.on("/b21_on", HTTP_GET, [](AsyncWebServerRequest *request){  
     pipevent_state_ctl = 1;
     request->send(SPIFFS, "/index.html", String(), false, processor);
-  }); 
-  server.on("/b2_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-    pipevent_state_ctl = 2;
   });
-
+  server.on("/b21_on_intervall", HTTP_GET, [](AsyncWebServerRequest *request){  
+    pipevent_state_ctl = 2;
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+    
+  // Pipe ventilator duty cycle Button
+  server.on("/b22_15", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_dutycycle_ctl = 15;
+  });  
+  server.on("/b22_30", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_dutycycle_ctl = 30;
+  });  
+  server.on("/b22_50", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_dutycycle_ctl = 50;
+  });  
+  server.on("/b22_80", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_dutycycle_ctl = 80;
+  });  
+          
   // LED state Button
   
   server.on("/b3_off", HTTP_GET, [](AsyncWebServerRequest *request){  
@@ -336,10 +353,17 @@ void loop(){
 
     // Sende eine Anfrage an den Slave
     Serial.println("Request data on I2C from SLAVE");
-    
+
+    unsigned long startTime = millis(); // Startzeit messen
+      
     Wire.requestFrom(SLAVE_ADDRESS, data_bytes_request_from_slave); // Fordere X Bytes vom Slave an
 
     while(Wire.available() < data_bytes_request_from_slave) {
+      // Überprüfe, ob ein Timeout aufgetreten ist
+      if (millis() - startTime >= TIMEOUT_MS) {
+        Serial.println("Timeout beim Warten auf Antwort vom Slave!");
+        break;
+      }
       // Warte, bis alle Bytes empfangen wurden
       delay(1);
     }
@@ -349,10 +373,10 @@ void loop(){
     while(Wire.available()) {
       // Empfange die Daten vom Slave und schreibe sie in das Array
       data_request[i] = Wire.read();
-      Serial.print("Value ");
-      Serial.print(i);
-      Serial.print(": ");
-      Serial.println(data_request[i]);
+      //Serial.print("Value ");
+      //Serial.print(i);
+      //Serial.print(": ");
+      //Serial.println(data_request[i]);
       i++;
     }
 
@@ -382,10 +406,10 @@ void loop(){
     // ############################ Buttons 
 
     dummy_state_ctl_str       = state_ctl_txt(dummy_state_ctl);
-    pipevent_state_ctl_str    = state_ctl_txt(pipevent_state_ctl);
     led_state_ctl_str         = state_ctl_led_txt(led_state_ctl);
     ventilator_state_ctl_str  = state_ctl_txt(ventilator_state_ctl);
-
+    pipevent_state_ctl_str    = state_ctl_txt(pipevent_state_ctl);
+    
     // ############################ States from Arduino 
 
     dummy_state_str       = state_txt(dummy_state);
@@ -407,7 +431,8 @@ void loop(){
     data_to_slave[1] = pipevent_state_ctl;
     data_to_slave[2] = led_state_ctl;
     data_to_slave[3] = ventilator_state_ctl;
-  
+    data_to_slave[4] = pipevent_dutycycle_ctl;
+    
     // Daten an den Bus senden
     Wire.beginTransmission(SLAVE_ADDRESS);
     Wire.write(data_to_slave, sizeof(data_to_slave));
