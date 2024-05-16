@@ -48,10 +48,10 @@ const char* ssid = "Pumuckel";            // wifi network
 const char* password = "Stiller_83";      // wifi network
 AsyncWebServer server(80);                // Create AsyncWebServer object on port 8888
 
-byte dummy_state = 0;                      // 0=OFF, 1=ON
-String dummy_state_str = "...";
-byte dummy_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
-String dummy_state_ctl_str = "...";
+byte heater_state = 0;                     // 0=OFF, 1=ON
+String heater_state_str = "...";
+byte heater_state_ctl = 0;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+String heater_state_ctl_str = "...";
 
 byte pipevent_state = 0;                   // 0=OFF, 1=ON
 String pipevent_state_str = "...";
@@ -158,11 +158,11 @@ String getmsg_req_feedback() {
 // Multiplex processor for all data variables 
 String processor(const String& var){
 
-  if(var == "dummy_state_str"){
-    return dummy_state_str;
+  if(var == "heater_state_str"){
+    return heater_state_str;
   }
-  if(var == "dummy_state_ctl_str"){
-    return dummy_state_ctl_str;
+  if(var == "heater_state_ctl_str"){
+    return heater_state_ctl_str;
   }
   if(var == "pipevent_state_str"){
     return pipevent_state_str;
@@ -249,19 +249,19 @@ void setup(){
   });
 
 
-  // Dummy State Button (Called when <IP>/b1_off browsed)
+  // Heater State Button (Called when <IP>/b1_off browsed)
   
   server.on("/b1_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-    dummy_state_ctl = 0;
+    heater_state_ctl = 0;
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
   server.on("/b1_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-    dummy_state_ctl = 1;
+    heater_state_ctl = 1;
     request->send(SPIFFS, "/index.html", String(), false, processor);
   }); 
   server.on("/b1_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
     request->send(SPIFFS, "/index.html", String(), false, processor);
-    dummy_state_ctl = 2;
+    heater_state_ctl = 2;
   });
 
   // Pipe ventilator state Button
@@ -337,6 +337,8 @@ void setup(){
   
   // Start server
   server.begin();
+  Serial.println("Server started");
+  
 }
 
 
@@ -373,10 +375,10 @@ void loop(){
     while(Wire.available()) {
       // Empfange die Daten vom Slave und schreibe sie in das Array
       data_request[i] = Wire.read();
-      //Serial.print("Value ");
-      //Serial.print(i);
-      //Serial.print(": ");
-      //Serial.println(data_request[i]);
+      Serial.print("Value ");
+      Serial.print(i);
+      Serial.print(": ");
+      Serial.println(data_request[i]);
       i++;
     }
 
@@ -394,7 +396,7 @@ void loop(){
     dutycycle = float(dutycycle_int)/10; 
 
     // States zuweisen
-    dummy_state =       data_request[8];      
+    heater_state =      data_request[8];      
     pipevent_state =    data_request[9];
     led_state =         data_request[10];
     ventilator_state =  data_request[11];
@@ -405,14 +407,14 @@ void loop(){
     
     // ############################ Buttons 
 
-    dummy_state_ctl_str       = state_ctl_txt(dummy_state_ctl);
+    heater_state_ctl_str      = state_ctl_txt(heater_state_ctl);
     led_state_ctl_str         = state_ctl_led_txt(led_state_ctl);
     ventilator_state_ctl_str  = state_ctl_txt(ventilator_state_ctl);
     pipevent_state_ctl_str    = state_ctl_txt(pipevent_state_ctl);
     
     // ############################ States from Arduino 
 
-    dummy_state_str       = state_txt(dummy_state);
+    heater_state_str       = state_txt(heater_state);
     pipevent_state_str    = state_txt(pipevent_state);
     led_state_str         = state_txt(led_state);
     ventilator_state_str  = state_txt(ventilator_state);
@@ -424,10 +426,10 @@ void loop(){
   if ((millisec - cycle_send_pre > cycle_send_period)) {
     cycle_send_pre = millisec;
 
-    Serial.println("Send data on I2C to SLAVE");
+    Serial.println("Send data on I2C to SLAVE (start)");
   
     // Bytes in das Datenarray schreiben
-    data_to_slave[0] = dummy_state_ctl;
+    data_to_slave[0] = heater_state_ctl;
     data_to_slave[1] = pipevent_state_ctl;
     data_to_slave[2] = led_state_ctl;
     data_to_slave[3] = ventilator_state_ctl;
@@ -438,6 +440,7 @@ void loop(){
     Wire.write(data_to_slave, sizeof(data_to_slave));
     Wire.endTransmission();
 
+    Serial.println("Send data on I2C to SLAVE (end)");
   }
    
   delay(1);
