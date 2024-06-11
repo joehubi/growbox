@@ -44,8 +44,8 @@ const unsigned long cycle_send_period = 2000;  // in ms
 //int port = 8888;  //Port number
 //WiFiServer server(port);
 
-const char* ssid = "Pumuckel";            // wifi network
-const char* password = "Stiller_83";      // wifi network
+const char* ssid = "XXX";            // wifi network
+const char* password = "XXX";      // wifi network
 AsyncWebServer server(80);                // Create AsyncWebServer object on port 8888
 
 byte heater_state = 0;                     // 0=OFF, 1=ON
