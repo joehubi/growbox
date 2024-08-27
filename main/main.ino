@@ -1,7 +1,7 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  16.05.2024
+  14.06.2024
 */
 
 // #############################################################  Library
@@ -10,6 +10,7 @@
 #include "RTClib.h"           // https://github.com/StephanFink/RTClib/archive/master.zip
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include "DHT.h" 
 
 #define SLAVE_ADDRESS 9
 // MASTER = ESP8266
@@ -19,17 +20,23 @@
 
 const bool debug_misc = false;
 const bool debug_auto = false;
-const bool no_RTC = true;
+const bool RTC_init = false;
 
 // Interupt-Input for testing the Interupt-Output
 //const byte interruptPin = 2;      // Debugging
 //volatile byte state = LOW;        // Debugging
 
-// #############################################################  Temperature sensors
+// #############################################################  sensors
 
-#define ONE_WIRE_BUS 8                    // Data wire is plugged into pin 8 on the Arduino
+#define ONE_WIRE_BUS 8    // Data wire is plugged into pin X on the Arduino
+#define DHTPIN1 6          // Der Sensor wird an PIN X angeschlossen    
+#define DHTPIN2 7          
+#define DHTTYPE DHT22     // Es handelt sich um den DHT22 Sensor
+
 OneWire oneWire(ONE_WIRE_BUS);            // Setup a OneWire instance to communicate with any OneWire devices
 DallasTemperature tempsensors(&oneWire);  // Pass OneWire reference to Dallas Temperature
+DHT dht1(DHTPIN1, DHTTYPE);               // Der Sensor wird ab jetzt mit „dth1“ angesprochen
+DHT dht2(DHTPIN2, DHTTYPE);               // Der Sensor wird ab jetzt mit „dth2“ angesprochen
 
 float TS01 = 0.0;  
 float TS02 = 0.0; 
@@ -37,6 +44,15 @@ float TS03 = 0.0;
 int TS01_int = 0;         
 int TS02_int = 0;         
 int TS03_int = 0;         
+
+//float FS01_T = 0.0;  
+//float FS02_T = 0.0; 
+//float FS01_LF = 0.0;  
+//float FS02_LF = 0.0;    
+int FS01_T_int = 0;         
+int FS02_T_int = 0;         
+int FS01_LF_int = 0;         
+int FS02_LF_int = 0;   
 
 // #############################################################  Soil Humuditiy sensor
 
@@ -69,7 +85,7 @@ int const ventilator_pin = PD5;
 
 // #############################################################  Variables
 
-const byte data_bytes_from_master = 5;
+const byte data_bytes_from_master = 7;
 byte data_from_master[data_bytes_from_master]; // Array zur Speicherung der empfangenen Daten
 
 byte msg_req_cnt = 0;
@@ -91,8 +107,10 @@ byte send13 = 0;
 byte send14 = 0;
 byte send15 = 0;
 byte send16 = 0;
+byte send17 = 0;
+byte send18 = 0;
    
-RTC_DS3231 rtc;
+RTC_DS3231 RTC;
 
 const bool syncOnFirstStart = false;  // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen.
                                       // sollte standardm��ig auf false stehen
@@ -113,8 +131,15 @@ byte led_minute_pre = 0;
 
 byte _minute = 0;
 byte _hour = 0;
-word word_hourm = 0;
+byte _second = 0;
+word _hourminute = 0;
 
+struct RTC_s {
+    byte hour;
+    byte minute;
+    byte hourminute;
+};
+    
 const byte vent_min_array[31]={
   0 ,2 ,4 ,6 ,8 ,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60
   };  // minutes of an hour
@@ -145,27 +170,35 @@ int duty_cycle_int = 0;
 int icr_const = 7;            // -> results in 1,12 kHz PWM cycle 
 
 // Control of the pipe ventilator
-const float P_ = 2;           // P-Anteil
-const float i_ = 0.01;        // I-Anteil
-const float T_set = 25.0;     // Setpoint
-float T_act = 0.0;      // Actual value of sensor
-float T_err = 0.0;      // Error (actual value - setpoint)
-float T_i_prev = 0.0;   // buffer for integrator
+//const float P_ = 2;           // P-Anteil
+//const float i_ = 0.01;        // I-Anteil
+//const float T_set = 25.0;     // Setpoint
+//float T_act = 0.0;      // Actual value of sensor
+//float T_err = 0.0;      // Error (actual value - setpoint)
+//float T_i_prev = 0.0;   // buffer for integrator
 
 // Timer for timed loops
 const int cycle_1000ms = 1000;      
-unsigned long cycle_1000ms_dt;
+unsigned long cycle_1000ms_dt = 0;
+
 const int cycle_1500ms = 1500;
-unsigned long cycle_1500ms_dt;
-const int cycle_5000ms = 5000;
-unsigned long cycle_5000ms_dt;
+unsigned long cycle_1500ms_dt = 0;
 
 unsigned long timer_read_pre = 0;
 const unsigned long timer_read_period = 2000;  
-//unsigned long timer_send_pre = 0;
-//const unsigned long timer_send_period = 5000;  
 
 unsigned long millisec;           // arduino time-ms
+
+// #############################################################      Funktionen
+
+RTC_s getRTC() {
+    DateTime now = RTC.now();
+    RTC_s outputs;
+    outputs.hour = now.hour();
+    outputs.minute = now.minute();
+    outputs.hourminute = outputs.minute + 60 * outputs.hour;  // Berechne hourminute (Minuten des Tages)
+    return outputs;
+}
 
 // #############################################################      Setup
 
@@ -193,24 +226,35 @@ void setup(void){
 
 // ############################  Temperature sensors
 
-  tempsensors.begin();
+  tempsensors.begin();    // OneWire: Temperatursensoren starten         
+  dht1.begin();           // OneWire: Feuchtigkeitssensor DHT22 starten
+  dht2.begin(); 
+      
   delay(500);
   
 // ############################  RTC
 
-  if (no_RTC == true) {
-    
+  if (RTC_init == true) {
+    // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
+    // RTC.adjust(DateTime(2023, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
   }
   
-  if (! rtc.begin()) {
-    Serial.println("RTC can not be initialized");
+  if (! RTC.begin()) {
+    Serial.println("Error: RTC can not be initialized");
     //while (1);
   }
+  else {
+    Serial.println("RTC initialized");    
+  }
 
-  // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
-  // rtc.adjust(DateTime(2023, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss
+  delay(1000);
 
-
+  // Uhrzeit einmalig bei Start von der RTC holen
+  RTC_s rtc_values = getRTC();
+  _minute = rtc_values.minute;
+  _hour =rtc_values.hour;
+  _hourminute = rtc_values.hourminute;
+   
 // ############################  Interrupt-Output (PWM pins)
 
   /*
@@ -241,15 +285,15 @@ void setup(void){
 // #############################################################      Loop
 
 void loop(void){
-
+  
 millisec = millis();      // get time from arduino-clock (time since arduino is running in ms)
 
 // ############################################   1500 ms
 
-  if (millisec - cycle_1500ms_dt > cycle_1500ms) {
+  if (millisec - cycle_1500ms_dt >= cycle_1500ms) {
     cycle_1500ms_dt = millisec;
     
-    Serial.println("Start 1500ms"); 
+    //Serial.println("Start 1500ms"); 
     
 // ############################################   heater
 
@@ -282,7 +326,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       vent_minute_pre = vent_minute;
 
       if (debug_auto == true) {
-      Serial.println("check ventilator state");
+      //Serial.println("check ventilator state");
       }
 
       // Change ventilator state (on/off) according to actual minutes and state-array
@@ -290,14 +334,14 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         if (_minute == vent_min_array[i]) {
           ventilator_state = vent_state_array[i];
           if (debug_auto == true) {
-            Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
+            //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
           }
           i = 1000; //exit for-loop
         }
         else if (_minute < vent_min_array[i]) {
           ventilator_state = vent_state_array[i-1];
           if (debug_auto == true) {
-            Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
+            //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
           }
           i = 1000; //exit for-loop       
         }
@@ -317,7 +361,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       led_state = 1;
       break;
     case 2: // 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr)
-      if ((word_hourm >= 240) && (word_hourm <= 1320)) {
+      if ((_hourminute >= 240) && (_hourminute <= 1320)) {
         led_state = 1;
       }
       else {
@@ -325,7 +369,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       }
       break;
     case 3: // 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr)
-      if ((word_hourm >= 480) && (word_hourm <= 1200)) {
+      if ((_hourminute >= 480) && (_hourminute <= 1200)) {
         led_state = 1;
       }
       else {
@@ -338,22 +382,22 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         led_minute_pre = led_minute;
 
         if (debug_auto == true) {
-        Serial.println("check LED state");
+        //Serial.println("check LED state");
         }
 
         // Change led state (on/off) according to actual hour-minutes and state-array
         for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
-          if (word_hourm == led_hourm_array[i]) {
+          if (_hourminute == led_hourm_array[i]) {
             led_state = led_state_array[i];
             if (debug_auto == true) {
-              Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(word_hourm));
+              //Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(_hourminute));
             }
             i = 1000; //exit for-loop
           }
-          else if (word_hourm < led_hourm_array[i]) {
+          else if (_hourminute < led_hourm_array[i]) {
             led_state = led_state_array[i-1];
             if (debug_auto == true) {
-              Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(word_hourm));
+              //Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(_hourminute));
             }
             i = 1000; //exit for-loop       
           }
@@ -372,16 +416,49 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   digitalWrite(ventilator_pin,  ventilator_state);  
 
   // ###### End 1500 ms
-  Serial.println("End 1500ms");
+  //Serial.println("End 1500ms");
   }
 
 
 // ############################################   1000 ms
 
-  if (millisec - cycle_1000ms_dt > cycle_1000ms) {
+  if (millisec - cycle_1000ms_dt >= cycle_1000ms) {
     cycle_1000ms_dt = millisec;
 
-    Serial.println("Start 1000ms");
+    //Serial.println("Start 1000ms");
+    //Serial.println("millisec: "+String(millisec));
+
+    _second++;
+    
+    if (_second >= 60) {
+      _second = 0;
+      _minute++;
+      if (_minute >= 60) {
+        _minute = 0;
+        _hour++;
+        if (_hour >= 24) {
+          _hour = 0;
+          
+          // Uhrzeit einmalig bei Start von der RTC holen
+          RTC_s rtc_values = getRTC();
+          _minute = rtc_values.minute;
+          _hour =rtc_values.hour;
+          _hourminute = rtc_values.hourminute;
+        }
+      }
+      _hourminute = _minute + 60*_hour;   // calc hourm (minutes of the day)
+    }
+    
+//    Serial.println("Zeiten"); 
+//    Serial.println("Sekunde: "+String(_second));
+//    Serial.println("Minute: "+String(_minute));
+//    Serial.println("Stunde: "+String(_hour));
+//    Serial.println("Stundenminute: "+String(_hourminute));
+              
+    // Trigger für Statuswechsel (LED / Ventilator updaten)
+    vent_minute     = _minute;
+    pipevent_minute = _minute;
+    led_minute      = _minute;
     
 // ############################################   Pipe ventilator controller
     //T_act = TS01;   
@@ -407,11 +484,11 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
           pipevent_minute_pre = pipevent_minute;
     
           pipevent_minute_count++;    // add counter
-          Serial.println("pipevent_minute_count: "+String(pipevent_minute_count));
+          //Serial.println("pipevent_minute_count: "+String(pipevent_minute_count));
                 
           if (pipevent_minute_count >= pipevent_minute_change) {
             //Serial.println("Send pipeventilator to rest to reduce heating cost");
-            Serial.println("pipevent_minute_change: "+String(pipevent_minute_change));
+            //Serial.println("pipevent_minute_change: "+String(pipevent_minute_change));
             
             // reset counter
             pipevent_minute_count = 0;
@@ -420,12 +497,12 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
             if (pipevent_state == 0) {
               pipevent_state = 1;
               pipevent_minute_change = pipevent_minute_ON; // Set pipeventilator ON for X min
-              Serial.println("pipeventilator ON for (min) - "+String(pipevent_minute_ON));
+              //Serial.println("pipeventilator ON for (min) - "+String(pipevent_minute_ON));
             }
             else {
               pipevent_state = 0;
               pipevent_minute_change = pipevent_minute_OFF; // Set pipeventilator ON for X min
-              Serial.println("pipeventilator OFF for (min) - "+String(pipevent_minute_OFF));
+              //Serial.println("pipeventilator OFF for (min) - "+String(pipevent_minute_OFF));
             }
           }
           
@@ -458,44 +535,23 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     OCR1A = (duty_cycle/100)*icr_const;     // Send to interrupt-output
     OCR1B = (duty_cycle/100)*icr_const;     // Send to interrupt-output
     
-    Serial.println("End 1000ms");
+    //Serial.println("End 1000ms");
     
   }
-
-// ############################################   5000 ms 
-  
-  if (millisec - cycle_5000ms_dt > cycle_5000ms) {
-    cycle_5000ms_dt = millisec;
-    
-    Serial.println("RTC (start)");  
-      
-    // ############################################   Real time clock 
-
-    DateTime now = rtc.now();
-
-    _hour = now.hour();
-    _minute = now.minute();
-    word_hourm = now.minute() + 60*(now.hour());   // calc hourm (minutes of the day)
-
-    // Trigger für Statuswechsel (LED / Ventilator updaten)
-    vent_minute     = _minute;
-    pipevent_minute = _minute;
-    led_minute      = _minute;
-    
-    Serial.println("RTC (end)");
-  }
-
 
 // ############################################   READ
 
   if ((millisec - timer_read_pre > timer_read_period)) {
   timer_read_pre = millisec;
   
-    Serial.println("Read sensors (start)");
+    //Serial.println("Read sensors (start)");
     
     // ############################################   READ temperature sensors
+    
     tempsensors.requestTemperatures();
+
     //Serial.println("Temperature is: " + String(tempsensors.getTempCByIndex(0)) + "°C");
+
     TS01 = tempsensors.getTempCByIndex(0);
     TS02 = tempsensors.getTempCByIndex(1);
     TS03 = tempsensors.getTempCByIndex(2);
@@ -518,8 +574,30 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     //Serial.print("Sensor-Spannung: ");
     //Serial.print(debocap_value);
     //Serial.println(" V");
+    
+    // ############################################   READ humidity sensor
 
-    Serial.println("Read sensors (end)");
+    FS01_LF_int = dht1.readHumidity();        
+    FS01_T_int = dht1.readTemperature(); 
+        
+    FS02_LF_int = dht2.readHumidity();        
+    FS02_T_int = dht2.readTemperature();  
+        
+    //Serial.print("Luftfeuchtigkeit 1: "); //Im seriellen Monitor den Text und 
+    //Serial.println(FS01_LF_int); //die Dazugehörigen Werte anzeigen
+    //Serial.println(" %");
+    //Serial.print("Temperatur 1: ");
+    //Serial.println(FS01_T_int);
+    //Serial.println(" Grad Celsius");
+  
+    //Serial.print("Luftfeuchtigkeit 2: "); //Im seriellen Monitor den Text und 
+    //Serial.println(FS02_LF_int); //die Dazugehörigen Werte anzeigen
+    //Serial.println(" %");
+    //Serial.print("Temperatur 2: ");
+    //Serial.println(FS02_T_int);
+    //Serial.println(" Grad Celsius"); 
+      
+    //Serial.println("Read sensors (end)");
 
   }
   
@@ -531,7 +609,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 //  ##############################################################  Data RECEIVE from MASTER
 
 void receiveEvent(int bytes) {
-  Serial.println("Data RECEIVE from MASTER (start)");
+  //Serial.println("Data RECEIVE from MASTER (start)");
 
   // Stelle sicher, dass die richtige Anzahl an Bytes empfangen wurde
   if (bytes == data_bytes_from_master) {
@@ -539,24 +617,22 @@ void receiveEvent(int bytes) {
     // Lese die empfangenen Daten in das Array
     for (int i = 0; i < bytes; i++) {
       data_from_master[i] = Wire.read();
-      Serial.println("Read: Data - "+String(i));
+      //Serial.println("Read: Data - "+String(i));
     }
 
-    heater_state_ctl =         data_from_master[0];   
+    heater_state_ctl =        data_from_master[0];   
     pipevent_state_ctl =      data_from_master[1];
     led_state_ctl =           data_from_master[2];
     ventilator_state_ctl =    data_from_master[3];
     pipevent_dutycycle_ctl =  data_from_master[4];
+    pipevent_minute_ON =      data_from_master[5];
+    pipevent_minute_OFF =     data_from_master[6];
         
     // Zeige die Werte im Serial Monitor an
-    //Serial.print("Received control: ");
-    //Serial.print(heater_state_ctl);
-    //Serial.print(", ");
-    //Serial.print(pipevent_state_ctl);
-    //Serial.print(", ");
-    //Serial.print(led_state_ctl);
-    //Serial.print(", ");
-    //Serial.println(ventilator_state_ctl);
+    //Serial.print("pipevent_minute_ON: ");
+    //Serial.println(pipevent_minute_ON);
+    //Serial.print("pipevent_minute_OFF: ");
+    //Serial.println(pipevent_minute_OFF);
     
   }
   
@@ -565,7 +641,7 @@ void receiveEvent(int bytes) {
     data_from_master[i] = 0;
   }
 
-  Serial.println("Data RECEIVE from MASTER (end)");
+  //Serial.println("Data RECEIVE from MASTER (end)");
 }
 
 //  ##############################################################  Data REQUEST from MASTER
@@ -573,7 +649,7 @@ void receiveEvent(int bytes) {
 void requestEvent() {
 
   msg_req_cnt++;
-  Serial.println("Send: Message Request Counter - "+String(msg_req_cnt));
+  //Serial.println("Send: Message Request Counter - "+String(msg_req_cnt));
   
   // Float in Integer umwandeln
   TS01_int = TS01*10;
@@ -595,16 +671,18 @@ void requestEvent() {
   send5 = highByte(TS03_int);
   send6 = lowByte(duty_cycle_int); 
   send7 = highByte(duty_cycle_int);
-  send8 =   heater_state;
+  send8 =  heater_state;
   send9 =  pipevent_state;
-  send10 =  led_state;
-  send11 =  ventilator_state;
-  send12 =  _hour;
-  send13 =  _minute;
+  send10 = led_state;
+  send11 = ventilator_state;
+  send12 = _hour;
+  send13 = _minute;
   send14 = lowByte(debocap_percentage);
   send15 = highByte(debocap_percentage);
   send16 = msg_req_cnt;
-  
+  send17 = FS01_LF_int;
+  send18 = FS02_LF_int;
+    
   //Serial.print("Send data to MASTER:");
   //Serial.print(send13);
   //Serial.print(", ");
@@ -628,6 +706,8 @@ void requestEvent() {
   Wire.write(send14);
   Wire.write(send15);
   Wire.write(send16);
+  Wire.write(send17);
+  Wire.write(send18);
 
-  Serial.println("Send (end)");
+  //Serial.println("Send (end)");
 }

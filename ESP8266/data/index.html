@@ -2,7 +2,7 @@
 <!-- 
   Johannes Huber
   https://github.com/joehubi/growbox
-  10.05.2024
+  11.06.2024
 -->
 <html>
 <head>
@@ -28,8 +28,7 @@
 				%TS01%
 			</span>
 			&deg;C
-		</p>
-		<p>
+			, 
 			Lampe (TS02):
 			<span 
 				class="label_1"
@@ -37,8 +36,7 @@
 				%TS02%
 			</span>
 			&deg;C
-		</p>
-		<p>
+			, 
 			Pflanze (TS03):
 			<span 
 				class="label_1"
@@ -46,6 +44,22 @@
 				%TS03%
 			</span>
 			&deg;C
+		</p>
+		<p>
+			Luftfeuchte:
+			<span
+				class="label_1"
+				id="FS01_LF">
+				%FS01_LF%
+			</span>
+			 &#037
+			, 
+			<span
+				class="label_1"
+				id="FS01_LF">
+				%FS02_LF%
+			</span>
+			 &#037
 		</p>
 		<p>
 			Bodenfeuchte:
@@ -89,6 +103,32 @@
 			<a href="/b22_80"><button class="button_small">80</button></a>		
 		</p>
 		<p>
+			Pipe ventilator: ON-Zeit = 
+			<span
+				class="label_1"
+				id="pipevent_minute_ON">
+				%pipevent_minute_ON%
+			</span>				
+			 min , setpoints ON-Zeit 
+			<a href="/b5_2"><button class="button_small">2</button></a>
+			<a href="/b5_4"><button class="button_small">4</button></a>
+			<a href="/b5_6"><button class="button_small">6</button></a>
+			<a href="/b5_8"><button class="button_small">8</button></a>		
+		</p>
+		<p>
+			Pipe ventilator: OFF-Zeit = 
+			<span
+				class="label_1"
+				id="pipevent_minute_OFF">
+				%pipevent_minute_OFF%
+			</span>				
+			 min , setpoints OFF-Zeit 
+			<a href="/b6_0"><button class="button_small">0</button></a>
+			<a href="/b6_2"><button class="button_small">2</button></a>
+			<a href="/b6_4"><button class="button_small">4</button></a>
+			<a href="/b6_6"><button class="button_small">6</button></a>		
+		</p>
+		<p>
 			LED:
 			<span
 				class="label_1">
@@ -112,7 +152,6 @@
 			<a href="/b4_off"><button class="button_small button2">OFF</button></a>
 			<a href="/b4_auto"><button class="button_small button4">AUTOMATIC</button></a>
 		</p>	
-		
 		<p>
 			RTC:
 			<span

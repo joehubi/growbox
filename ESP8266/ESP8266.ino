@@ -1,7 +1,7 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  16.05.24
+  11.06.24
 */
 
 // #################################################################### Libray
@@ -29,11 +29,17 @@ float TS03 = 0.0;
 int TS01_int = 0;
 int TS02_int = 0;
 int TS03_int = 0;
+        
+int FS01_LF = 0;   // Luftfeuchte Sensor 1 - 0..100%
+int FS02_LF = 0;   // Luftfeuchte Sensor 2 - 0..100%
 
 int debocap_percentage = 0; // 0..100 % Bodenfeuchte
 
 byte word_hour = 0;
 byte word_minute = 0;
+
+byte pipevent_minute_ON     = 4;
+byte pipevent_minute_OFF    = 2;
 
 unsigned long millisec;           // time-ms
 unsigned long cycle_read_pre = 0;
@@ -44,13 +50,13 @@ const unsigned long cycle_send_period = 2000;  // in ms
 //int port = 8888;  //Port number
 //WiFiServer server(port);
 
-const char* ssid = "XXX";            // wifi network
-const char* password = "XXX";      // wifi network
+const char* ssid = "Pumuckel";            // wifi network
+const char* password = "Stiller_83";      // wifi network
 AsyncWebServer server(80);                // Create AsyncWebServer object on port 8888
 
 byte heater_state = 0;                     // 0=OFF, 1=ON
 String heater_state_str = "...";
-byte heater_state_ctl = 0;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+byte heater_state_ctl = 1;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
 String heater_state_ctl_str = "...";
 
 byte pipevent_state = 0;                   // 0=OFF, 1=ON
@@ -69,8 +75,8 @@ String ventilator_state_str = "...";
 byte ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
 String ventilator_state_ctl_str = "...";
 
-const byte data_bytes_to_slave = 5;
-const byte data_bytes_request_from_slave = 17;
+const byte data_bytes_to_slave = 7;
+const byte data_bytes_request_from_slave = 19;
 
 byte data_to_slave[data_bytes_to_slave]; // Array zur Speicherung der Werte
 byte data_request[data_bytes_request_from_slave]; // Array zur Speicherung der empfangenen Daten
@@ -142,8 +148,20 @@ String getTS03() {
 String getdutycycle() {
   return String(dutycycle);
 }
+String getpipevent_minute_ON() {
+  return String(pipevent_minute_ON);
+}
+String getpipevent_minute_OFF() {
+  return String(pipevent_minute_OFF);
+}
 String getdebocap_percentage() {
   return String(debocap_percentage);
+}
+String getFS01_LF() {
+  return String(FS01_LF);
+}
+String getFS02_LF() {
+  return String(FS02_LF);
 }
 String getwordhour() {
   return String(word_hour);
@@ -194,9 +212,21 @@ String processor(const String& var){
   else if (var == "dutycycle"){
     return getdutycycle();
   }
+  else if (var == "pipevent_minute_ON"){
+    return getpipevent_minute_ON();
+  }
+  else if (var == "pipevent_minute_OFF"){
+    return getpipevent_minute_OFF();
+  }    
   else if (var == "debocap_percentage"){
     return getdebocap_percentage();
-  }       
+  }
+  else if (var == "FS01_LF"){
+    return getFS01_LF();
+  } 
+  else if (var == "FS02_LF"){
+    return getFS02_LF();
+  }        
   else if (var == "word_hour"){
     return getwordhour();
   }
@@ -237,7 +267,7 @@ void setup(){
 // ######################## Webserver GUI
 
   Serial.println("Start programme");
-  
+      
   // Load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/style.css", "text/css");
@@ -247,8 +277,7 @@ void setup(){
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
-
-
+  
   // Heater State Button (Called when <IP>/b1_off browsed)
   
   server.on("/b1_off", HTTP_GET, [](AsyncWebServerRequest *request){  
@@ -335,10 +364,47 @@ void setup(){
     ventilator_state_ctl = 2;
   });
   
+    // Pipe ventilator ON-Zeit Button
+  server.on("/b5_2", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_minute_ON = 2;
+  });  
+  server.on("/b5_4", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_minute_ON = 4;
+  });  
+  server.on("/b5_6", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_minute_ON = 6;
+  });  
+  server.on("/b5_8", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_minute_ON = 8;
+  });  
+
+    // Pipe ventilator OFF-Zeit Button
+  server.on("/b6_0", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_minute_OFF = 0;
+  });  
+  server.on("/b6_2", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_minute_OFF = 2;
+  });  
+  server.on("/b6_4", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_minute_OFF = 4;
+  });  
+  server.on("/b6_6", HTTP_GET, [](AsyncWebServerRequest *request){  
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+    pipevent_minute_OFF = 6;
+  }); 
+
+
   // Start server
   server.begin();
   Serial.println("Server started");
-  
+      
 }
 
 
@@ -375,10 +441,10 @@ void loop(){
     while(Wire.available()) {
       // Empfange die Daten vom Slave und schreibe sie in das Array
       data_request[i] = Wire.read();
-      Serial.print("Value ");
-      Serial.print(i);
-      Serial.print(": ");
-      Serial.println(data_request[i]);
+      //Serial.print("Value ");
+      //Serial.print(i);
+      //Serial.print(": ");
+      //Serial.println(data_request[i]);
       i++;
     }
 
@@ -404,7 +470,9 @@ void loop(){
     word_minute =       data_request[13];
     // Feedback counter
     msg_req_feedback =  data_request[16];
-    
+    FS01_LF =           data_request[17];
+    FS02_LF =           data_request[18];
+            
     // ############################ Buttons 
 
     heater_state_ctl_str      = state_ctl_txt(heater_state_ctl);
@@ -434,13 +502,15 @@ void loop(){
     data_to_slave[2] = led_state_ctl;
     data_to_slave[3] = ventilator_state_ctl;
     data_to_slave[4] = pipevent_dutycycle_ctl;
-    
+    data_to_slave[5] = pipevent_minute_ON;
+    data_to_slave[6] = pipevent_minute_OFF;
+            
     // Daten an den Bus senden
     Wire.beginTransmission(SLAVE_ADDRESS);
     Wire.write(data_to_slave, sizeof(data_to_slave));
     Wire.endTransmission();
 
-    Serial.println("Send data on I2C to SLAVE (end)");
+    //Serial.println("Send data on I2C to SLAVE (end)");
   }
    
   delay(1);
