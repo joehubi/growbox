@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Build",
+        "type": "shell",
+        "command": "g++",
+        "args": [
+          "-I", "${workspaceFolder}/include",
+          "-I", "${workspaceFolder}/include/external_library",
+          "${workspaceFolder}/src/main.cpp",
+          "-o", "${workspaceFolder}/build/myprogram"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      }
+    ]
+  }
+  

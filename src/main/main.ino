@@ -6,8 +6,8 @@
 
 // #############################################################  Library
 
-#include <Wire.h>             // Die Datums- und Zeit-Funktionen der DS3231 RTC werden �ber das I2C aufgerufen.
-#include "RTClib.h"           // https://github.com/StephanFink/RTClib/archive/master.zip
+#include <Wire.h>                               // Die Datums- und Zeit-Funktionen der DS3231 RTC werden �ber das I2C aufgerufen.
+#include "RTClib.h"               // https://github.com/StephanFink/RTClib/archive/master.zip
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include "DHT.h" 
