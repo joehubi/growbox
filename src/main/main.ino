@@ -8,90 +8,151 @@
 
   // Lib's integrated in Arduino-Standard folder  
   #include <Wire.h>                 // https://github.com/codebendercc/arduino-library-files.git
-  #include <RTClib.h>               // https://github.com/StephanFink/RTClib/archive/master.zip
+  #include <RTClib.h>               // https://github.com/StephanFink/RTClib/
   #include <OneWire.h>              // https://www.pjrc.com/teensy/td_libs_OneWire.html
   #include <DallasTemperature.h>    // https://github.com/milesburton/Arduino-Temperature-Control-Library.git
   #include <DHT.h>                  // https://github.com/Khuuxuanngoc/DHT-sensor-library.git
 
-  #define SLAVE_ADDRESS 9           // MASTER = ESP8266, SLAVE = ARDUINO
-
 // ############################ Variables
-  // ############################ Debugging Variables
-    const bool debug_misc   = false;
-    const bool debug_auto   = false;
-    const bool debug_sensor = false;
-    const bool RTC_init     = false;
+  // ############################ General debugging Variables
+    #define PRINT_VARIABLE(var) Serial.print(#var " = "); Serial.println(var);
+    const bool debug_array   = false;    // Debugging Array-Management
 
     // Interupt-Input for testing the Interupt-Output
     // const byte interruptPin = 2;      // Debugging
     // volatile byte state = LOW;        // Debugging
 
   // ############################ Sensor's
-    #define ONE_WIRE_BUS 8     // Data wire is plugged into pin X on the Arduino
-    #define DHTPIN1 6          // Der Sensor wird an PIN X angeschlossen    
-    #define DHTPIN2 7          
-    #define DHTTYPE DHT22      // Es handelt sich um den DHT22 Sensor
+    // ############################ DHT22 (temp & humidity)
+      #define DHTPIN1 6          // Connected on Pin D6 on Arduino UNO    
+      #define DHTPIN2 7          // Connected on Pin D7 on Arduino UNO      
+      #define DHTTYPE DHT22      // Es handelt sich um den DHT22 Sensor
 
-    OneWire oneWire(ONE_WIRE_BUS);            // Setup a OneWire instance to communicate with any OneWire devices
-    DallasTemperature tempsensors(&oneWire);  // Pass OneWire reference to Dallas Temperature
-    DHT dht1(DHTPIN1, DHTTYPE);               // Der Sensor wird ab jetzt mit „dth1“ angesprochen
-    DHT dht2(DHTPIN2, DHTTYPE);               // Der Sensor wird ab jetzt mit „dth2“ angesprochen
+      const bool debug_DHT22 = false;
 
-    float TS01 = 0.0;  
-    float TS02 = 0.0; 
-    float TS03 = 0.0;    
-    int TS01_int = 0;         
-    int TS02_int = 0;         
-    int TS03_int = 0;         
+      DHT dht1(DHTPIN1, DHTTYPE);               // Der Sensor wird mit „dth1“ angesprochen
+      DHT dht2(DHTPIN2, DHTTYPE);               // Der Sensor wird mit „dth2“ angesprochen
 
-    //float FS01_T = 0.0;  
-    //float FS02_T = 0.0; 
-    //float FS01_LF = 0.0;  
-    //float FS02_LF = 0.0;    
-    int FS01_T_int = 0;         
-    int FS02_T_int = 0;         
-    int FS01_LF_int = 0;         
-    int FS02_LF_int = 0;   
+      int FS01_T_int = 0;         
+      int FS02_T_int = 0;         
+      int FS01_LF_int = 0;         
+      int FS02_LF_int = 0;   
 
-  // ############################ Soil Humuditiy sensor
+    // ############################ SHELLY DS18B20 (Temperature, OneWire)
+      #define ONE_WIRE_BUS 8                    // Data wire on Pin D8 at Arduino UNO
+      OneWire oneWire(ONE_WIRE_BUS);            // Setup a OneWire instance to communicate with any OneWire devices
+      DallasTemperature tempsensors(&oneWire);  // Pass OneWire reference to Dallas Temperature
 
-    const int debocap_pin = A0;
-    int debocap_percentage = 0;
-      
-    const int debocap_dry_air = 635;        // 3,3 V und lange Leitung
-    //const int debocap_normal_soil = 429;  // 3,3 V und kurze Leitung
-    //const int debocap_wet_soil = 255;     // 3,3 V und kurze Leitung
-    const int debocap_water = 258;          // 3,3 V und lange Leitung
+      const bool debug_temp_DS18B20 = false;
 
-  // ############################ Actuators
+      float TS01 = 0.0;  
+      float TS02 = 0.0; 
+      float TS03 = 0.0;    
+      int TS01_int = 0;         
+      int TS02_int = 0;         
+      int TS03_int = 0;   
 
-    byte heater_state = 0;            // 0 = OFF, 1 = ON
-    byte heater_state_ctl = 0;        // 0 = OFF, 1 = ON, 2=AUTOMATIC
-    int const heater_pin = PD2; 
+    // ############################ Soil Humuditiy sensor
+      const int debocap_pin = A0;     // Data wire on Pin A0 or D14 at Arduino UNO
+      int debocap_percentage = 0;
+        
+      const bool debug_debocap = false;
 
-    byte pipevent_state = 0;           // 0 = OFF, 1 = ON
-    byte pipevent_state_ctl = 0;       // 0 = OFF, 1 = ON, 2=AUTOMATIC
-    byte pipevent_dutycycle_ctl = 50;  // Duty cycle control (%)
-    int const pipevent_pin = PD3; 
+      const int debocap_dry_air = 635;        // 3,3 V und lange Leitung
+      //const int debocap_normal_soil = 429;  // 3,3 V und kurze Leitung
+      //const int debocap_wet_soil = 255;     // 3,3 V und kurze Leitung
+      const int debocap_water = 258;          // 3,3 V und lange Leitung
+
+  // ############################ Electrical Socket's with timing
+    // ############################ Pipe ventilator (socket switch + PWM signal)
+      byte pipevent_minute = 0;
+      byte pipevent_minute_pre = 0; 
+      byte pipevent_minute_change = 0;
+      byte pipevent_minute_ON     = 2;
+      byte pipevent_minute_OFF    = 5;
+      byte pipevent_minute_count  = 0;
+
+      byte pipevent_state = 0;           // 0 = OFF, 1 = ON
+      byte pipevent_state_ctl = 0;       // 0 = OFF, 1 = ON, 2=AUTOMATIC
+      byte pipevent_dutycycle_ctl = 50;  // Duty cycle control (%)
+
+      int const pipevent_pin = PD3; 
+
+      // ############################ Interupt-Output interrupt for pipe ventilator
+        double duty_cycle   = 0.0;     // 0-100%. This duty cycle is present on pin 9 and inverted on Pin 10
+        int duty_cycle_int  = 0;    
+        //int icr_const     = 8000;    // -> results in 1 Hz PWM cycle (debugging)
+        int icr_const       = 7;       // -> results in 1,12 kHz PWM cycle 
+
+      // ############################ Control of the pipe ventilator (NOT USED)
+        // const float P_ = 2;           // P-Anteil
+        // const float i_ = 0.01;        // I-Anteil
+        // const float T_set = 25.0;     // Setpoint
+        // float T_act = 0.0;      // Actual value of sensor
+        // float T_err = 0.0;      // Error (actual value - setpoint)
+        // float T_i_prev = 0.0;   // buffer for integrator
+
+    // ############################ Heater (socket switch)
+      int const heater_pin = PD2; 
+
+      byte heater_state = 0;            // 0 = OFF, 1 = ON
+      byte heater_state_ctl = 0;        // 0 = OFF, 1 = ON, 2=AUTOMATIC
+
+    // ############################ ventilator (socket switch + timing)
+      int const ventilator_pin = PD5;  
+
+      byte ventilator_state = 0;      
+      byte ventilator_state_ctl = 0;      // 0 = OFF, 1 = ON, 2=AUTOMATIC
+
+      byte vent_minute      = 0;
+      byte vent_minute_pre  = 0; 
+
+      const byte vent_min_array[31]={
+        0 ,2 ,4 ,6 ,8 ,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60
+        };  // minutes of an hour
+      const byte vent_state_array[31]={
+        1 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0
+        };    // on/off time of ventilator can be programmed here (0=off, 1=on within one minute)
+
+    // ############################ LED (socket switch + timing)
+      int const led_pin = PD4; 
+
+      byte led_state = 0;      
+      byte led_state_ctl = 0;             // 0 = OFF, 1 = ON, 2 = 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr), 
+                                          // 3 = 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr), 4 = Entsprechend Array 
+      byte led_minute = 0;
+      byte led_minute_pre = 0; 
+
+      const word led_hourm_array[96]={
+        0   , 15  , 30  , 45  , 60  , 75  , 90  , 105 , 120 , 135 , 150 , 165 , 180 , 195 , 210 , 225 , 240 , 255 , 270 , 285 ,
+        300 , 315 , 330 , 345 , 360 , 375 , 390 , 405 , 420 , 435 , 450 , 465 , 480 , 495 , 510 , 525 , 540 , 555 , 570 ,
+        585 , 600 , 615 , 630 , 645 , 660 , 675 , 690 , 705 , 720 , 735 , 750 , 765 , 780 , 795 , 810 , 825 , 840 , 855 ,
+        870 , 885 , 900 , 915 , 930 , 945 , 960 , 975 , 990 , 1005, 1020, 1035, 1050, 1065, 1080, 1095, 1110, 1125, 1140,
+        1155, 1170, 1185, 1200, 1215, 1230, 1245, 1260, 1275, 1290, 1305, 1320, 1335, 1350, 1365, 1380, 1395, 1410, 1425
+        };  // minutes of a 24 hour day
+      const word led_state_array[96]={
+        0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   ,
+        0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 1   , 1   , 1   , 1   , 1   ,
+        1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   ,
+        1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   ,
+        1   , 1   , 1   , 1   , 1   , 1   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0
+        };    // on/off time of LED can be programmed here (0=off, 1=on within one day)
+        
+
     
-    byte led_state = 0;      
-    byte led_state_ctl = 0;             // 0 = OFF, 1 = ON, 2 = 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr), 
-                                        // 3 = 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr), 4 = Entsprechend Array 
-    int const led_pin = PD4; 
-    
-    byte ventilator_state = 0;      
-    byte ventilator_state_ctl = 0;      // 0 = OFF, 1 = ON, 2=AUTOMATIC
-    int const ventilator_pin = PD5;  
-
-
   // ############################ Communication Arduino Uno <-> ESP8266
     // MASTER = ESP8266, SLAVE = ARDUINO
+    #define SLAVE_ADDRESS 9           // MASTER = ESP8266, SLAVE = ARDUINO
+    
     // ############################ MASTER -> SLAVE
+      const bool debug_master2slave     = true;
       const byte data_bytes_from_master = 7;
       byte data_from_master[data_bytes_from_master]; // Array zur Speicherung der empfangenen Daten
       byte msg_req_cnt = 0;
 
     // ############################ SLAVE -> MASTER
+      const bool debug_slave2master = true;
+
       byte send0 = 0;
       byte send1 = 0;
       byte send2 = 0;
@@ -113,8 +174,14 @@
       byte send18 = 0;
 
   // ############################ RTC
-    RTC_DS3231 RTC;
+    // Die RTC muss über die Pin's A4 und A5 verbunden werden (siehe Arduino UNO Pinout und Dokumentation https://github.com/StephanFink/RTClib/, UNO is ATmega328).
+    // Die Kommunikation ist I2C. 
+    // A4 = SDA (serial data) = D18
+    // A5 = SCL (serial clock) = D19 
+    RTC_DS3231 RTC; 
     const bool syncOnFirstStart = false;  // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen (default = FALSE)
+
+    const bool RTC_init     = false;
 
     String timestamp  = "dd.mm.yyyy HH:MM:ss";
     byte _minute      = 0;
@@ -128,57 +195,9 @@
         byte hourminute;
     };
 
-  // ############################ Pipe ventilator
-    byte pipevent_minute = 0;
-    byte pipevent_minute_pre = 0; 
-    byte pipevent_minute_change = 0;
-    byte pipevent_minute_ON     = 2;
-    byte pipevent_minute_OFF    = 5;
-    byte pipevent_minute_count  = 0;
-    // ############################ Interupt-Output interrupt for pipe ventilator
-      double duty_cycle   = 0.0;     // 0-100%. This duty cycle is present on pin 9 and inverted on Pin 10
-      int duty_cycle_int  = 0;    
-      //int icr_const     = 8000;    // -> results in 1 Hz PWM cycle (debugging)
-      int icr_const       = 7;       // -> results in 1,12 kHz PWM cycle 
-    // ############################ Control of the pipe ventilator (NOT USED)
-      // const float P_ = 2;           // P-Anteil
-      // const float i_ = 0.01;        // I-Anteil
-      // const float T_set = 25.0;     // Setpoint
-      // float T_act = 0.0;      // Actual value of sensor
-      // float T_err = 0.0;      // Error (actual value - setpoint)
-      // float T_i_prev = 0.0;   // buffer for integrator
-
-  // ############################ ventilator
-    byte vent_minute      = 0;
-    byte vent_minute_pre  = 0; 
-
-    const byte vent_min_array[31]={
-      0 ,2 ,4 ,6 ,8 ,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60
-      };  // minutes of an hour
-    const byte vent_state_array[31]={
-      1 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0
-      };    // on/off time of ventilator can be programmed here (0=off, 1=on within one minute)
-
-  // ############################ LED
-      byte led_minute = 0;
-      byte led_minute_pre = 0; 
-
-      const word led_hourm_array[96]={
-        0   , 15  , 30  , 45  , 60  , 75  , 90  , 105 , 120 , 135 , 150 , 165 , 180 , 195 , 210 , 225 , 240 , 255 , 270 , 285 ,
-        300 , 315 , 330 , 345 , 360 , 375 , 390 , 405 , 420 , 435 , 450 , 465 , 480 , 495 , 510 , 525 , 540 , 555 , 570 ,
-        585 , 600 , 615 , 630 , 645 , 660 , 675 , 690 , 705 , 720 , 735 , 750 , 765 , 780 , 795 , 810 , 825 , 840 , 855 ,
-        870 , 885 , 900 , 915 , 930 , 945 , 960 , 975 , 990 , 1005, 1020, 1035, 1050, 1065, 1080, 1095, 1110, 1125, 1140,
-        1155, 1170, 1185, 1200, 1215, 1230, 1245, 1260, 1275, 1290, 1305, 1320, 1335, 1350, 1365, 1380, 1395, 1410, 1425
-        };  // minutes of a 24 hour day
-      const word led_state_array[96]={
-        0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   ,
-        0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 1   , 1   , 1   , 1   , 1   ,
-        1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   ,
-        1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   , 1   ,
-        1   , 1   , 1   , 1   , 1   , 1   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0
-        };    // on/off time of LED can be programmed here (0=off, 1=on within one day)
-        
   // ############################ Timer for timed loops
+    const bool debug_timers = false;
+
     const int cycle_1000ms          = 1000;      
     unsigned long cycle_1000ms_dt   = 0;
 
@@ -204,9 +223,9 @@
 // ############################ Setup
 void setup(void){
 // ############################ Communication Arduino Uno <-> ESP8266 (Node MCU)
-  Wire.begin(SLAVE_ADDRESS);      // I2C default nur auf SDA und SCL Pin's des Arduino möglich
-  Wire.onReceive(receiveEvent);   // MASTER schickt Daten an SLAVE
-  Wire.onRequest(requestEvent);   // MASTER fordert Daten an SLAVE
+  Wire.begin(SLAVE_ADDRESS);      // Initialize Interface
+  Wire.onReceive(receiveEvent);   // Initialize EVENT
+  Wire.onRequest(requestEvent);   // Initialize EVENT
 
 // ############################ Debugging Schnittstelle  
   Serial.begin(9600);             // for Debugging/print  
@@ -228,9 +247,9 @@ void setup(void){
 
 // ############################ Temperature sensors
 
-  tempsensors.begin();    // OneWire: Temperatursensoren starten         
-  dht1.begin();           // OneWire: Feuchtigkeitssensor DHT22 starten
-  dht2.begin(); 
+  tempsensors.begin();    // Temperatursensoren starten         
+  dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
+  dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
       
   delay(500);
   
@@ -238,7 +257,7 @@ void setup(void){
 
   if (RTC_init == true) {
     // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
-    // RTC.adjust(DateTime(2023, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
+    RTC.adjust(DateTime(2024, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
   }
   
   if (! RTC.begin()) {
@@ -257,7 +276,7 @@ void setup(void){
   _hour       = rtc_values.hour;
   _hourminute = rtc_values.hourminute;
   
-  Serial.println("RTC-time: MM:HH - " + String(_minute) + ":" + String(_hour) +" , Hour-Minute - " + String(_hourminute));
+  Serial.println("RTC-time: HH:MM - " + String(_hour) + ":" + String(_minute) +" , Hour-Minute - " + String(_hourminute));
 
 
 // ############################ Interrupt-Output (PWM pins)
@@ -308,8 +327,10 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   if (millisec - cycle_1000ms_dt >= cycle_1000ms) {
     cycle_1000ms_dt = millisec;
 
-    // Serial.println("Start 1000ms");
-    // Serial.println("millisec: "+String(millisec));
+    if (debug_timers == true) {
+      Serial.println("Start 1000 ms");
+      Serial.println("millisec: "+String(millisec));
+    }
 
     // ############################################ Calculate times with second-timer
       _second++;
@@ -333,12 +354,14 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)
       }
       
-      // Serial.println("Zeiten"); 
-      // Serial.println("Sekunde: "+String(_second));
-      // Serial.println("Minute: "+String(_minute));
-      // Serial.println("Stunde: "+String(_hour));
-      // Serial.println("Stundenminute: "+String(_hourminute));
-              
+      if (debug_timers == true) {
+        Serial.println("Zeiten"); 
+        Serial.println("Sekunde: "+String(_second));
+        Serial.println("Minute: "+String(_minute));
+        Serial.println("Stunde: "+String(_hour));
+        Serial.println("Stundenminute: "+String(_hourminute));
+      }
+
     // ############################################ Trigger für Statuswechsel (LED / Ventilator) updaten)
       vent_minute     = _minute;
       pipevent_minute = _minute;
@@ -417,7 +440,9 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       OCR1A = (duty_cycle/100)*icr_const;     // Send to interrupt-output
       OCR1B = (duty_cycle/100)*icr_const;     // Send to interrupt-output
     
-    //Serial.println("End 1000ms");
+    if (debug_timers == true) {
+      Serial.println("End 1000 ms");
+    }
     
   }
 // ############################ 1500 ms
@@ -425,8 +450,10 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
   if (millisec - cycle_1500ms_dt >= cycle_1500ms) {
     cycle_1500ms_dt = millisec;
     
-    //Serial.println("Start 1500ms"); 
-    
+    if (debug_timers == true) {
+      Serial.println("Start 1500 ms"); 
+    }
+
     // ############################################   heater
       switch (heater_state_ctl) {
         case 0:
@@ -455,7 +482,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         if (vent_minute != vent_minute_pre) {
           vent_minute_pre = vent_minute;
 
-          if (debug_auto == true) {
+          if (debug_array == true) {
           //Serial.println("check ventilator state");
           }
 
@@ -463,14 +490,14 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
           for (word i = 0; (i < sizeof(vent_min_array) / sizeof(vent_min_array[0]) && i < 1000) ; i++){
             if (_minute == vent_min_array[i]) {
               ventilator_state = vent_state_array[i];
-              if (debug_auto == true) {
+              if (debug_array == true) {
                 //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
               }
               i = 1000; //exit for-loop
             }
             else if (_minute < vent_min_array[i]) {
               ventilator_state = vent_state_array[i-1];
-              if (debug_auto == true) {
+              if (debug_array == true) {
                 //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
               }
               i = 1000; //exit for-loop       
@@ -510,7 +537,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
           if (led_minute != led_minute_pre) {
             led_minute_pre = led_minute;
 
-            if (debug_auto == true) {
+            if (debug_array == true) {
             //Serial.println("check LED state");
             }
 
@@ -518,14 +545,14 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
             for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
               if (_hourminute == led_hourm_array[i]) {
                 led_state = led_state_array[i];
-                if (debug_auto == true) {
+                if (debug_array == true) {
                   //Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(_hourminute));
                 }
                 i = 1000; //exit for-loop
               }
               else if (_hourminute < led_hourm_array[i]) {
                 led_state = led_state_array[i-1];
-                if (debug_auto == true) {
+                if (debug_array == true) {
                   //Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(_hourminute));
                 }
                 i = 1000; //exit for-loop       
@@ -542,21 +569,23 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       digitalWrite(led_pin,         led_state);
       digitalWrite(ventilator_pin,  ventilator_state);  
 
-  
-  
-    //Serial.println("End 1500ms");
+    if (debug_timers == true) {
+      Serial.println("End 1500 ms");
+    }
   }
 
 
 
 
-// ############################ READ (2000 ms)
+// ############################ 2000 ms (read sensors)
 
   if ((millisec - timer_read_pre > timer_read_period)) {
     timer_read_pre = millisec;
   
-    //Serial.println("Read sensors (start)");
-    
+    if (debug_timers == true) {
+      Serial.println("Read sensors Start 2000 ms (read sensors)");
+    }
+
     // ############################################   READ temperature sensors
       tempsensors.requestTemperatures();
 
@@ -566,28 +595,23 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       TS02 = tempsensors.getTempCByIndex(1);
       TS03 = tempsensors.getTempCByIndex(2);
 
-      if (debug_sensor == true) {
-        Serial.println("Temperatures"); 
-        Serial.println("TS01: "+String(TS01));
-        Serial.println("TS02: "+String(TS02));
-        Serial.println("TS03: "+String(TS03));      
+      if (debug_temp_DS18B20 == true) {
+        Serial.println("Temperaturen [°C] der DS18B20-Sensoren");
+        PRINT_VARIABLE(TS01);    
+        PRINT_VARIABLE(TS02);    
+        PRINT_VARIABLE(TS03);    
       }
 
-    // ############################################   READ moisture sensor
+    // ############################################   READ soil moisture sensor
       int debocap_value = analogRead(debocap_pin);
     
       // Konvertiere den analogen Wert in eine Bodenfeuchte-Prozentzahl
       debocap_percentage = map(debocap_value, debocap_water, debocap_dry_air, 100, 0);
 
-
-        if (debug_sensor == true) {
-          // Gib den Bodenfeuchte-Prozentsatz über die serielle Schnittstelle aus
-          Serial.print("Bodenfeuchte: ");
-          Serial.print(debocap_percentage);
-          Serial.println(" %");
-          Serial.print("Sensor-Spannung: ");
-          Serial.print(debocap_value);
-          Serial.println(" V");   
+      if (debug_debocap == true) {
+        Serial.println("Feuchtigkeit [%] und Spannung [V] des DEBOCAP"); 
+        PRINT_VARIABLE(debocap_percentage);
+        PRINT_VARIABLE(debocap_value);
       }
 
     // ############################################   READ humidity sensor
@@ -598,23 +622,17 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       FS02_LF_int = dht2.readHumidity();        
       FS02_T_int  = dht2.readTemperature();  
 
-      if (debug_sensor == true) {
-        Serial.print("Luftfeuchtigkeit 1: "); // Im seriellen Monitor den Text und 
-        Serial.println(FS01_LF_int);          // die Dazugehörigen Werte anzeigen
-        Serial.println(" %");
-        Serial.print("Temperatur 1: ");
-        Serial.println(FS01_T_int);
-        Serial.println(" Grad Celsius");
-    
-        Serial.print("Luftfeuchtigkeit 2: "); // Im seriellen Monitor den Text und 
-        Serial.println(FS02_LF_int);          // die Dazugehörigen Werte anzeigen
-        Serial.println(" %");
-        Serial.print("Temperatur 2: ");
-        Serial.println(FS02_T_int);
-        Serial.println(" Grad Celsius");    
+      if (debug_DHT22 == true) {
+        Serial.println("Relative Luftfeuchtigkeit [%] und Temperatur [°C] des DHT22");
+        PRINT_VARIABLE(FS01_LF_int);
+        PRINT_VARIABLE(FS01_T_int);
+        PRINT_VARIABLE(FS02_LF_int);
+        PRINT_VARIABLE(FS02_T_int);  
       }        
 
-    // Serial.println("Read sensors (end)");
+    if (debug_timers == true) {
+      Serial.println("End 2000 ms (read sensors)");
+    }
 
   }
   
@@ -622,17 +640,22 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
 }
 
-// ############################################ Data RECEIVE from MASTER
+// ############################################ MASTER -> SLAVE
 void receiveEvent(int bytes) {
-  Serial.println("Data RECEIVE from MASTER (start)");
-
+  
+  if (debug_master2slave == true) {
+    Serial.println("Master2Slave: Data Event started");
+  }
+  
   // Stelle sicher, dass die richtige Anzahl an Bytes empfangen wurde
   if (bytes == data_bytes_from_master) {
 
     // Lese die empfangenen Daten in das Array
     for (int i = 0; i < bytes; i++) {
       data_from_master[i] = Wire.read();
-      //Serial.println("Read: Data - "+String(i));
+      if (debug_master2slave == true) {
+        Serial.println("Read: Data - "+String(i));
+      }
     }
 
     heater_state_ctl =        data_from_master[0];   
@@ -643,12 +666,15 @@ void receiveEvent(int bytes) {
     pipevent_minute_ON =      data_from_master[5];
     pipevent_minute_OFF =     data_from_master[6];
         
-    // Zeige die Werte im Serial Monitor an
-    //Serial.print("pipevent_minute_ON: ");
-    //Serial.println(pipevent_minute_ON);
-    //Serial.print("pipevent_minute_OFF: ");
-    //Serial.println(pipevent_minute_OFF);
-    
+    if (debug_master2slave == true) {    
+      PRINT_VARIABLE(heater_state_ctl);
+      PRINT_VARIABLE(pipevent_state_ctl);
+      PRINT_VARIABLE(led_state_ctl);
+      PRINT_VARIABLE(ventilator_state_ctl);
+      PRINT_VARIABLE(pipevent_dutycycle_ctl);
+      PRINT_VARIABLE(pipevent_minute_ON);
+      PRINT_VARIABLE(pipevent_minute_OFF);
+    }
   }
   
   // Setze alle Werte im Array auf 0
@@ -656,15 +682,20 @@ void receiveEvent(int bytes) {
     data_from_master[i] = 0;
   }
 
-  Serial.println("Data RECEIVE from MASTER (end)");
+  if (debug_master2slave == true) {
+    Serial.println("Master2Slave: End");
+  }
 }
 
 // ############################################ Data REQUEST from MASTER
 void requestEvent() {
 
   msg_req_cnt++;
-  Serial.println("Send: Message Request Counter - "+String(msg_req_cnt));
-  
+  if (debug_slave2master == true) {
+    Serial.println("Slave2Master: Message Request Counter - "+String(msg_req_cnt));
+    PRINT_VARIABLE(msg_req_cnt);
+  }
+
   // Float in Integer umwandeln
   TS01_int = TS01*10;
   TS02_int = TS02*10;
@@ -691,11 +722,28 @@ void requestEvent() {
   send16 = msg_req_cnt;
   send17 = FS01_LF_int;
   send18 = FS02_LF_int;
-    
-  //Serial.print("Send data to MASTER:");
-  //Serial.print(send13);
-  //Serial.print(", ");
-  //Serial.println(send14);
+
+  if (debug_slave2master == true) {
+    PRINT_VARIABLE(send0);
+    PRINT_VARIABLE(send1);
+    PRINT_VARIABLE(send2);
+    PRINT_VARIABLE(send3);
+    PRINT_VARIABLE(send4);
+    PRINT_VARIABLE(send5);
+    PRINT_VARIABLE(send6);
+    PRINT_VARIABLE(send7);
+    PRINT_VARIABLE(send8);
+    PRINT_VARIABLE(send9);
+    PRINT_VARIABLE(send10);
+    PRINT_VARIABLE(send11);
+    PRINT_VARIABLE(send12);
+    PRINT_VARIABLE(send13);
+    PRINT_VARIABLE(send14);
+    PRINT_VARIABLE(send15);
+    PRINT_VARIABLE(send16);
+    PRINT_VARIABLE(send17);
+    PRINT_VARIABLE(send18);
+  }
 
   // Sende Daten an den Master
   Wire.write(send0);
@@ -718,5 +766,7 @@ void requestEvent() {
   Wire.write(send17);
   Wire.write(send18);
 
-  Serial.println("Send (end)");
+  if (debug_slave2master == true) {
+    Serial.println("Slave2Master: End");
+  }
 }
