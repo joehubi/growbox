@@ -6,11 +6,12 @@
 
 // #############################################################  Library
 
-#include <Wire.h>                               // Die Datums- und Zeit-Funktionen der DS3231 RTC werden �ber das I2C aufgerufen.
-#include "RTClib.h"               // https://github.com/StephanFink/RTClib/archive/master.zip
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include "DHT.h" 
+// Lib's integrated in Arduino-Standard folder  
+#include <Wire.h>                 // https://github.com/codebendercc/arduino-library-files.git
+#include <RTClib.h>               // https://github.com/StephanFink/RTClib/archive/master.zip
+#include <OneWire.h>              // https://www.pjrc.com/teensy/td_libs_OneWire.html
+#include <DallasTemperature.h>    // https://github.com/milesburton/Arduino-Temperature-Control-Library.git
+#include <DHT.h>                  // https://github.com/Khuuxuanngoc/DHT-sensor-library.git
 
 #define SLAVE_ADDRESS 9
 // MASTER = ESP8266
@@ -20,6 +21,7 @@
 
 const bool debug_misc = false;
 const bool debug_auto = false;
+const bool debug_sensor = false;
 const bool RTC_init = false;
 
 // Interupt-Input for testing the Interupt-Output
@@ -28,10 +30,10 @@ const bool RTC_init = false;
 
 // #############################################################  sensors
 
-#define ONE_WIRE_BUS 8    // Data wire is plugged into pin X on the Arduino
+#define ONE_WIRE_BUS 8     // Data wire is plugged into pin X on the Arduino
 #define DHTPIN1 6          // Der Sensor wird an PIN X angeschlossen    
 #define DHTPIN2 7          
-#define DHTTYPE DHT22     // Es handelt sich um den DHT22 Sensor
+#define DHTTYPE DHT22      // Es handelt sich um den DHT22 Sensor
 
 OneWire oneWire(ONE_WIRE_BUS);            // Setup a OneWire instance to communicate with any OneWire devices
 DallasTemperature tempsensors(&oneWire);  // Pass OneWire reference to Dallas Temperature
@@ -556,25 +558,30 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     TS02 = tempsensors.getTempCByIndex(1);
     TS03 = tempsensors.getTempCByIndex(2);
 
-    //Serial.println("Temperatures"); 
-    //Serial.println("TS01: "+String(TS01));
-    //Serial.println("TS02: "+String(TS02));
-    //Serial.println("TS03: "+String(TS03));
-  
+    if (debug_sensor == true) {
+      Serial.println("Temperatures"); 
+      Serial.println("TS01: "+String(TS01));
+      Serial.println("TS02: "+String(TS02));
+      Serial.println("TS03: "+String(TS03));      
+    }
+
     // ############################################   READ moisture sensor
     int debocap_value = analogRead(debocap_pin);
   
     // Konvertiere den analogen Wert in eine Bodenfeuchte-Prozentzahl
     debocap_percentage = map(debocap_value, debocap_water, debocap_dry_air, 100, 0);
-  
-    // Gib den Bodenfeuchte-Prozentsatz über die serielle Schnittstelle aus
-    //Serial.print("Bodenfeuchte: ");
-    //Serial.print(debocap_percentage);
-    //Serial.println(" %");
-    //Serial.print("Sensor-Spannung: ");
-    //Serial.print(debocap_value);
-    //Serial.println(" V");
-    
+
+
+      if (debug_sensor == true) {
+        // Gib den Bodenfeuchte-Prozentsatz über die serielle Schnittstelle aus
+        Serial.print("Bodenfeuchte: ");
+        Serial.print(debocap_percentage);
+        Serial.println(" %");
+        Serial.print("Sensor-Spannung: ");
+        Serial.print(debocap_value);
+        Serial.println(" V");   
+    }
+
     // ############################################   READ humidity sensor
 
     FS01_LF_int = dht1.readHumidity();        
@@ -582,21 +589,23 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
         
     FS02_LF_int = dht2.readHumidity();        
     FS02_T_int = dht2.readTemperature();  
-        
-    //Serial.print("Luftfeuchtigkeit 1: "); //Im seriellen Monitor den Text und 
-    //Serial.println(FS01_LF_int); //die Dazugehörigen Werte anzeigen
-    //Serial.println(" %");
-    //Serial.print("Temperatur 1: ");
-    //Serial.println(FS01_T_int);
-    //Serial.println(" Grad Celsius");
-  
-    //Serial.print("Luftfeuchtigkeit 2: "); //Im seriellen Monitor den Text und 
-    //Serial.println(FS02_LF_int); //die Dazugehörigen Werte anzeigen
-    //Serial.println(" %");
-    //Serial.print("Temperatur 2: ");
-    //Serial.println(FS02_T_int);
-    //Serial.println(" Grad Celsius"); 
-      
+
+      if (debug_sensor == true) {
+        Serial.print("Luftfeuchtigkeit 1: "); //Im seriellen Monitor den Text und 
+        Serial.println(FS01_LF_int); //die Dazugehörigen Werte anzeigen
+        Serial.println(" %");
+        Serial.print("Temperatur 1: ");
+        Serial.println(FS01_T_int);
+        Serial.println(" Grad Celsius");
+    
+        Serial.print("Luftfeuchtigkeit 2: "); //Im seriellen Monitor den Text und 
+        Serial.println(FS02_LF_int); //die Dazugehörigen Werte anzeigen
+        Serial.println(" %");
+        Serial.print("Temperatur 2: ");
+        Serial.println(FS02_T_int);
+        Serial.println(" Grad Celsius");    
+    }        
+
     //Serial.println("Read sensors (end)");
 
   }
@@ -609,7 +618,7 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 //  ##############################################################  Data RECEIVE from MASTER
 
 void receiveEvent(int bytes) {
-  //Serial.println("Data RECEIVE from MASTER (start)");
+  Serial.println("Data RECEIVE from MASTER (start)");
 
   // Stelle sicher, dass die richtige Anzahl an Bytes empfangen wurde
   if (bytes == data_bytes_from_master) {
@@ -641,7 +650,7 @@ void receiveEvent(int bytes) {
     data_from_master[i] = 0;
   }
 
-  //Serial.println("Data RECEIVE from MASTER (end)");
+  Serial.println("Data RECEIVE from MASTER (end)");
 }
 
 //  ##############################################################  Data REQUEST from MASTER
@@ -649,19 +658,14 @@ void receiveEvent(int bytes) {
 void requestEvent() {
 
   msg_req_cnt++;
-  //Serial.println("Send: Message Request Counter - "+String(msg_req_cnt));
+  Serial.println("Send: Message Request Counter - "+String(msg_req_cnt));
   
   // Float in Integer umwandeln
   TS01_int = TS01*10;
   TS02_int = TS02*10;
   TS03_int = TS03*10;
   duty_cycle_int = duty_cycle*10;
-  
-  //Serial.println("Temperatures (INT)"); 
-  //Serial.println("TS01: "+String(TS01_int));
-  //Serial.println("TS02: "+String(TS02_int));
-  //Serial.println("TS03: "+String(TS03_int));
-    
+        
   // Integer in Byte umwandeln für die Übertragung per I2C
   send0 = lowByte(TS01_int); 
   send1 = highByte(TS01_int);
@@ -683,11 +687,11 @@ void requestEvent() {
   send17 = FS01_LF_int;
   send18 = FS02_LF_int;
     
-  //Serial.print("Send data to MASTER:");
-  //Serial.print(send13);
-  //Serial.print(", ");
-  //Serial.println(send14);
-   
+//  Serial.print("Send data to MASTER:");
+//  Serial.print(send13);
+//  Serial.print(", ");
+//  Serial.println(send14);
+
   // Sende Daten an den Master
   Wire.write(send0);
   Wire.write(send1);
@@ -709,5 +713,5 @@ void requestEvent() {
   Wire.write(send17);
   Wire.write(send18);
 
-  //Serial.println("Send (end)");
+  Serial.println("Send (end)");
 }
