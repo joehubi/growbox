@@ -181,7 +181,8 @@
     RTC_DS3231 RTC; 
     const bool syncOnFirstStart = false;  // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen (default = FALSE)
 
-    const bool RTC_init     = false;
+    const bool RTC_use         = true;      // 0 = don't use RTC (no init will be done), 1 = use RTC
+    const bool RTC_adjust      = false;     // adjust time on RTC chip
 
     String timestamp  = "dd.mm.yyyy HH:MM:ss";
     byte _minute      = 0;
@@ -255,27 +256,37 @@ void setup(void){
   
 // ############################ RTC
 
-  if (RTC_init == true) {
-    // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
-    RTC.adjust(DateTime(2024, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
-  }
-  
-  if (! RTC.begin()) {
-    Serial.println("Error: RTC can not be initialized");
-    //while (1);
+  if (RTC_use == true) {
+
+    if (RTC_adjust == true) {
+      // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
+      RTC.adjust(DateTime(2024, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
+    }
+    
+    if (! RTC.begin()) {
+      Serial.println("Error: RTC can not be initialized");
+      //while (1);
+    }
+    else {
+      Serial.println("RTC initialized");
+
+      // Uhrzeit einmalig bei Start von der RTC holen
+      RTC_s rtc_values = getRTC();
+      _minute     = rtc_values.minute;
+      _hour       = rtc_values.hour;
+      _hourminute = rtc_values.hourminute;
+    }
   }
   else {
-    Serial.println("RTC initialized");    
-  }
+    Serial.println("RTC time set manually");
+    // time can be set here manually
+    _minute     = 0;
+    _hour       = 12;
+    _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)       
+  }  
 
   delay(1000);
 
-  // Uhrzeit einmalig bei Start von der RTC holen
-  RTC_s rtc_values = getRTC();
-  _minute     = rtc_values.minute;
-  _hour       = rtc_values.hour;
-  _hourminute = rtc_values.hourminute;
-  
   Serial.println("RTC-time: HH:MM - " + String(_hour) + ":" + String(_minute) +" , Hour-Minute - " + String(_hourminute));
 
 
@@ -344,11 +355,13 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
           if (_hour >= 24) {
             _hour = 0;
             
-            // Altuelle Uhrzeit einmal am Tag von der RTC holen
-            RTC_s rtc_values  = getRTC();
-            _minute           = rtc_values.minute;
-            _hour             = rtc_values.hour;
-            _hourminute       = rtc_values.hourminute;
+            if (RTC_use == true) {
+              // Aktuelle Uhrzeit einmal am Tag von der RTC holen
+              RTC_s rtc_values  = getRTC();
+              _minute           = rtc_values.minute;
+              _hour             = rtc_values.hour;
+              _hourminute       = rtc_values.hourminute;
+            }
           }
         }
         _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)
