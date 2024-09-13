@@ -1,13 +1,14 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  06.09.2024
+  13.09.2024
 */
 
 // ############################ Library
 
   // Lib's integrated in Arduino-Standard folder  
-  #include <Wire.h>                 // https://github.com/codebendercc/arduino-library-files.git
+  #include <SoftwareSerial.h>
+//  #include <Wire.h>                 // https://github.com/codebendercc/arduino-library-files.git
   #include <RTClib.h>               // https://github.com/StephanFink/RTClib/
   #include <OneWire.h>              // https://www.pjrc.com/teensy/td_libs_OneWire.html
   #include <DallasTemperature.h>    // https://github.com/milesburton/Arduino-Temperature-Control-Library.git
@@ -65,16 +66,16 @@
 
   // ############################ Electrical Socket's with timing
     // ############################ Pipe ventilator (socket switch + PWM signal)
-      byte pipevent_minute = 0;
-      byte pipevent_minute_pre = 0; 
-      byte pipevent_minute_change = 0;
-      byte pipevent_minute_ON     = 2;
-      byte pipevent_minute_OFF    = 5;
-      byte pipevent_minute_count  = 0;
+      int pipevent_minute = 0;
+      int pipevent_minute_pre = 0; 
+      int pipevent_minute_change = 0;
+      int pipevent_minute_ON     = 2;
+      int pipevent_minute_OFF    = 5;
+      int pipevent_minute_count  = 0;
 
-      byte pipevent_state = 0;           // 0 = OFF, 1 = ON
-      byte pipevent_state_ctl = 0;       // 0 = OFF, 1 = ON, 2=AUTOMATIC
-      byte pipevent_dutycycle_ctl = 50;  // Duty cycle control (%)
+      int pipevent_state = 0;           // 0 = OFF, 1 = ON
+      int pipevent_state_ctl = 0;       // 0 = OFF, 1 = ON, 2=AUTOMATIC
+      int pipevent_dutycycle_ctl = 50;  // Duty cycle control (%)
 
       int const pipevent_pin = PD3; 
 
@@ -95,17 +96,17 @@
     // ############################ Heater (socket switch)
       int const heater_pin = PD2; 
 
-      byte heater_state = 0;            // 0 = OFF, 1 = ON
-      byte heater_state_ctl = 0;        // 0 = OFF, 1 = ON, 2=AUTOMATIC
+      int heater_state = 0;            // 0 = OFF, 1 = ON
+      int heater_state_ctl = 0;        // 0 = OFF, 1 = ON, 2=AUTOMATIC
 
     // ############################ ventilator (socket switch + timing)
       int const ventilator_pin = PD5;  
 
-      byte ventilator_state = 0;      
-      byte ventilator_state_ctl = 0;      // 0 = OFF, 1 = ON, 2=AUTOMATIC
+      int ventilator_state = 0;      
+      int ventilator_state_ctl = 0;      // 0 = OFF, 1 = ON, 2=AUTOMATIC
 
-      byte vent_minute      = 0;
-      byte vent_minute_pre  = 0; 
+      int vent_minute      = 0;
+      int vent_minute_pre  = 0; 
 
       const byte vent_min_array[31]={
         0 ,2 ,4 ,6 ,8 ,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60
@@ -117,11 +118,11 @@
     // ############################ LED (socket switch + timing)
       int const led_pin = PD4; 
 
-      byte led_state = 0;      
-      byte led_state_ctl = 0;             // 0 = OFF, 1 = ON, 2 = 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr), 
+      int led_state = 0;      
+      int led_state_ctl = 0;             // 0 = OFF, 1 = ON, 2 = 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr), 
                                           // 3 = 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr), 4 = Entsprechend Array 
-      byte led_minute = 0;
-      byte led_minute_pre = 0; 
+      int led_minute = 0;
+      int led_minute_pre = 0; 
 
       const word led_hourm_array[96]={
         0   , 15  , 30  , 45  , 60  , 75  , 90  , 105 , 120 , 135 , 150 , 165 , 180 , 195 , 210 , 225 , 240 , 255 , 270 , 285 ,
@@ -138,40 +139,17 @@
         1   , 1   , 1   , 1   , 1   , 1   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0
         };    // on/off time of LED can be programmed here (0=off, 1=on within one day)
         
-
-    
-  // ############################ Communication Arduino Uno <-> ESP8266
-    // MASTER = ESP8266, SLAVE = ARDUINO
-    #define SLAVE_ADDRESS 9           // MASTER = ESP8266, SLAVE = ARDUINO
-    
-    // ############################ MASTER -> SLAVE
-      const bool debug_master2slave     = true;
-      const byte data_bytes_from_master = 7;
-      byte data_from_master[data_bytes_from_master]; // Array zur Speicherung der empfangenen Daten
-      byte msg_req_cnt = 0;
-
-    // ############################ SLAVE -> MASTER
-      const bool debug_slave2master = true;
-
-      byte send0 = 0;
-      byte send1 = 0;
-      byte send2 = 0;
-      byte send3 = 0;
-      byte send4 = 0;
-      byte send5 = 0;
-      byte send6 = 0;
-      byte send7 = 0;
-      byte send8 = 0;
-      byte send9 = 0;
-      byte send10 = 0;
-      byte send11 = 0;
-      byte send12 = 0;
-      byte send13 = 0;
-      byte send14 = 0;
-      byte send15 = 0;
-      byte send16 = 0;
-      byte send17 = 0;
-      byte send18 = 0;
+  // ################### Software Serial
+    #define rxPin 12
+    #define txPin 13
+    SoftwareSerial SoftwareSerial_Arduino(rxPin, txPin);
+    // ################### READ
+      char incoming_char_array[50]; // max. receive 50 sign's in one incoming string
+      int read_ctn = 0;
+      int dummy = 0;    
+    // ################### SEND
+      char send_char_array[50]; // Puffer für die Datenübertragung (max. Länge der Nachricht festlegen)
+      int snd_ctn = 0;
 
   // ############################ RTC
     // Die RTC muss über die Pin's A4 und A5 verbunden werden (siehe Arduino UNO Pinout und Dokumentation https://github.com/StephanFink/RTClib/, UNO is ATmega328).
@@ -185,15 +163,15 @@
     const bool RTC_adjust      = false;     // adjust time on RTC chip
 
     String timestamp  = "dd.mm.yyyy HH:MM:ss";
-    byte _minute      = 0;
-    byte _hour        = 0;
-    byte _second      = 0;
-    word _hourminute  = 0;
+    int _minute      = 0;
+    int _hour        = 0;
+    int _second      = 0;
+    int _hourminute  = 0;
 
     struct RTC_s {
-        byte hour;
-        byte minute;
-        byte hourminute;
+        int hour;
+        int minute;
+        int hourminute;
     };
 
   // ############################ Timer for timed loops
@@ -212,118 +190,121 @@
 
 // ############################ Functions
 
-  RTC_s getRTC() {
-      DateTime now = RTC.now();
-      RTC_s outputs;
-      outputs.hour = now.hour();
-      outputs.minute = now.minute();
-      outputs.hourminute = outputs.minute + 60 * outputs.hour;  // Berechne hourminute (Minuten des Tages)
-      return outputs;
-  }
-
-// ############################ Setup
-void setup(void){
-// ############################ Communication Arduino Uno <-> ESP8266 (Node MCU)
-  Wire.begin(SLAVE_ADDRESS);      // Initialize Interface
-  Wire.onReceive(receiveEvent);   // Initialize EVENT
-  Wire.onRequest(requestEvent);   // Initialize EVENT
-
-// ############################ Debugging Schnittstelle  
-  Serial.begin(9600);             // for Debugging/print  
-  delay(500);
-  
-// ############################ Digital-Output
-
-  pinMode(heater_pin, OUTPUT);
-  pinMode(pipevent_pin, OUTPUT);
-  pinMode(led_pin, OUTPUT);
-  pinMode(ventilator_pin, OUTPUT);
-
-  digitalWrite(heater_pin, LOW);
-  digitalWrite(pipevent_pin, LOW);
-  digitalWrite(led_pin, LOW);
-  digitalWrite(ventilator_pin, LOW);
-
-  delay(500);
-
-// ############################ Temperature sensors
-
-  tempsensors.begin();    // Temperatursensoren starten         
-  dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
-  dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
-      
-  delay(500);
-  
-// ############################ RTC
-
-  if (RTC_use == true) {
-
-    if (RTC_adjust == true) {
-      // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
-      RTC.adjust(DateTime(2024, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
+  // ############################ RTC
+    RTC_s getRTC() {
+        DateTime now = RTC.now();
+        RTC_s outputs;
+        outputs.hour = now.hour();
+        outputs.minute = now.minute();
+        outputs.hourminute = outputs.minute + 60 * outputs.hour;  // Berechne hourminute (Minuten des Tages)
+        return outputs;
     }
+
+
+void setup(void){
+  // ############################ Communication Arduino Uno <-> ESP8266 (Node MCU)
+    // Wire.begin(SLAVE_ADDRESS);      // Initialize Interface
+    // Wire.onReceive(receiveEvent);   // Initialize EVENT
+    // Wire.onRequest(requestEvent);   // Initialize EVENT
+
+  // ############################ Debugging Schnittstelle  
+    Serial.begin(9600);             // for Debugging/print  
+    while (!Serial) {
+      ; // wait for serial port to connect
+    }
+    delay(500);
     
-    if (! RTC.begin()) {
-      Serial.println("Error: RTC can not be initialized");
-      //while (1);
+  // ############################ Digital-Output
+
+    pinMode(heater_pin, OUTPUT);
+    pinMode(pipevent_pin, OUTPUT);
+    pinMode(led_pin, OUTPUT);
+    pinMode(ventilator_pin, OUTPUT);
+
+    digitalWrite(heater_pin, LOW);
+    digitalWrite(pipevent_pin, LOW);
+    digitalWrite(led_pin, LOW);
+    digitalWrite(ventilator_pin, LOW);
+
+    delay(500);
+
+  // ############################ Temperature sensors
+
+    tempsensors.begin();    // Temperatursensoren starten         
+    dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
+    dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
+        
+    delay(500);
+    
+  // ############################ RTC
+
+    if (RTC_use == true) {
+
+      if (RTC_adjust == true) {
+        // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
+        RTC.adjust(DateTime(2024, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
+      }
+      
+      if (! RTC.begin()) {
+        Serial.println("Error: RTC can not be initialized");
+        //while (1);
+      }
+      else {
+        Serial.println("RTC initialized");
+
+        // Uhrzeit einmalig bei Start von der RTC holen
+        RTC_s rtc_values = getRTC();
+        _minute     = rtc_values.minute;
+        _hour       = rtc_values.hour;
+        _hourminute = rtc_values.hourminute;
+      }
     }
     else {
-      Serial.println("RTC initialized");
+      Serial.println("RTC time set manually");
+      // time can be set here manually
+      _minute     = 0;
+      _hour       = 12;
+      _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)       
+    }  
 
-      // Uhrzeit einmalig bei Start von der RTC holen
-      RTC_s rtc_values = getRTC();
-      _minute     = rtc_values.minute;
-      _hour       = rtc_values.hour;
-      _hourminute = rtc_values.hourminute;
-    }
-  }
-  else {
-    Serial.println("RTC time set manually");
-    // time can be set here manually
-    _minute     = 0;
-    _hour       = 12;
-    _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)       
-  }  
+    delay(1000);
 
-  delay(1000);
-
-  Serial.println("RTC-time: HH:MM - " + String(_hour) + ":" + String(_minute) +" , Hour-Minute - " + String(_hourminute));
+    Serial.println("RTC-time: HH:MM - " + String(_hour) + ":" + String(_minute) +" , Hour-Minute - " + String(_hourminute));
 
 
-// ############################ Interrupt-Output (PWM pins)
+  // ############################ Interrupt-Output (PWM pins)
 
-  /*
-    PWM_frequency = 16 Mhz / (2 * 1024 * icr_const)
-    Control register setup according to ATMEGA
-    https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf
-    This sets it so OCA1 and OCB1, connected to pin 9 and pin 10, to be inverted
-    in comparison to one another. Also sets Waveform generator mode to 10.
-  */
-  TCCR1A = (1 << COM1A1) | (1 << COM1B1) | (1 << COM1B0) | (1 << WGM11);  // pin setup
-  TCCR1B = (1 << WGM13) | (1 << CS12) | (0 << CS11) | (1 >> CS10);        // prescale 1024
+    /*
+      PWM_frequency = 16 Mhz / (2 * 1024 * icr_const)
+      Control register setup according to ATMEGA
+      https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf
+      This sets it so OCA1 and OCB1, connected to pin 9 and pin 10, to be inverted
+      in comparison to one another. Also sets Waveform generator mode to 10.
+    */
+    TCCR1A = (1 << COM1A1) | (1 << COM1B1) | (1 << COM1B0) | (1 << WGM11);  // pin setup
+    TCCR1B = (1 << WGM13) | (1 << CS12) | (0 << CS11) | (1 >> CS10);        // prescale 1024
 
-  ICR1 = icr_const; 
-  DDRB = (1 << DDB2) | (1 << DDB1);  // Configure DDR2 and DDR1 to be output mode, for pin 9 and pin 10.
-  OCR1A = (duty_cycle/100)*icr_const;
-  OCR1B = (duty_cycle/100)*icr_const;
+    ICR1 = icr_const; 
+    DDRB = (1 << DDB2) | (1 << DDB1);  // Configure DDR2 and DDR1 to be output mode, for pin 9 and pin 10.
+    OCR1A = (duty_cycle/100)*icr_const;
+    OCR1B = (duty_cycle/100)*icr_const;
 
-  //pinMode(LED_BUILTIN, OUTPUT);         // Interrupt-Input for testing
-  //pinMode(interruptPin, INPUT_PULLUP);  // Interrupt-Input for testing
-  //attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);  // Interrupt-Input for testing
+    //pinMode(LED_BUILTIN, OUTPUT);         // Interrupt-Input for testing
+    //pinMode(interruptPin, INPUT_PULLUP);  // Interrupt-Input for testing
+    //attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);  // Interrupt-Input for testing
 
-  //pinMode(pot1, INPUT);   // Debugging/Simulation
-  //pinMode(pot2, INPUT);   // Debugging/Simulation
+    //pinMode(pot1, INPUT);   // Debugging/Simulation
+    //pinMode(pot2, INPUT);   // Debugging/Simulation
 
-  //In case of no ESP8266 (Node MCU) connection set initial values
-  //These values are immediately overwritten by the ESP8266
+    //In case of no ESP8266 (Node MCU) connection set initial values
+    //These values are immediately overwritten by the ESP8266
 
-// ############################ Initial values (if ESP8266 is not available)
-
-  heater_state_ctl      = 0;    // OFF
-  pipevent_state_ctl    = 1;    // ON    
-  led_state_ctl         = 3;    // 12/12
-  ventilator_state_ctl  = 1;    // ON
-  pipevent_dutycycle_ctl = 50;  // 50 %
+  // ############################ Initial values (if ESP8266 is not available)
+    heater_state_ctl      = 0;    // OFF
+    pipevent_state_ctl    = 1;    // ON    
+    led_state_ctl         = 3;    // 12/12
+    ventilator_state_ctl  = 1;    // ON
+    pipevent_dutycycle_ctl = 50;  // 50 %
 
 }
 
@@ -340,8 +321,27 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
     if (debug_timers == true) {
       Serial.println("Start 1000 ms");
-      Serial.println("millisec: "+String(millisec));
     }
+    // ################### READ SoftwareSerial
+      if (SoftwareSerial_Arduino.available()) {
+        delay(50);  // short delay, to be sure all data is present at the Rx
+
+        String _incoming_string = SoftwareSerial_Arduino.readStringUntil('\n'); // read Rx
+
+        int _lenght = _incoming_string.length();  // lenght for debugging
+        PRINT_VARIABLE(_lenght);                  // lenght for debugging
+
+
+        _incoming_string.toCharArray(incoming_char_array, 50);     // copy data to char-Array (for sscanf)
+
+        PRINT_VARIABLE(incoming_char_array);
+
+        // decode data from char-array
+        byte _number_of_items = sscanf(incoming_char_array, "%u,%u,%u,%u,%u,%u,%u", &heater_state_ctl, &pipevent_state_ctl, &led_state_ctl, &ventilator_state_ctl, &pipevent_dutycycle_ctl, &pipevent_minute_ON, &pipevent_minute_OFF);
+
+        PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
+        PRINT_VARIABLE(read_ctn);           // print for debugging
+      }
 
     // ############################################ Calculate times with second-timer
       _second++;
@@ -467,6 +467,18 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
       Serial.println("Start 1500 ms"); 
     }
 
+    // ################### SEND SoftwareSerial
+      // Float in Integer umwandeln
+        TS01_int = TS01*10;
+        TS02_int = TS02*10;
+        TS03_int = TS03*10;
+        duty_cycle_int = duty_cycle*10;
+              
+      snd_ctn++;
+      sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", TS01_int,TS02_int,TS03_int,duty_cycle_int,heater_state,pipevent_state,led_state,ventilator_state,_hour,_minute,debocap_percentage,snd_ctn,FS01_LF_int,FS02_LF_int);
+      SoftwareSerial_Arduino.println(send_char_array);
+      PRINT_VARIABLE(send_char_array);
+
     // ############################################   heater
       switch (heater_state_ctl) {
         case 0:
@@ -587,9 +599,6 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
     }
   }
 
-
-
-
 // ############################ 2000 ms (read sensors)
 
   if ((millisec - timer_read_pre > timer_read_period)) {
@@ -653,133 +662,41 @@ millisec = millis();      // get time from arduino-clock (time since arduino is 
 
 }
 
-// ############################################ MASTER -> SLAVE
-void receiveEvent(int bytes) {
-  
-  if (debug_master2slave == true) {
-    Serial.println("Master2Slave: Data Event started");
-  }
-  
-  // Stelle sicher, dass die richtige Anzahl an Bytes empfangen wurde
-  if (bytes == data_bytes_from_master) {
-
-    // Lese die empfangenen Daten in das Array
-    for (int i = 0; i < bytes; i++) {
-      data_from_master[i] = Wire.read();
-      if (debug_master2slave == true) {
-        Serial.println("Read: Data - "+String(i));
-      }
-    }
-
-    heater_state_ctl =        data_from_master[0];   
-    pipevent_state_ctl =      data_from_master[1];
-    led_state_ctl =           data_from_master[2];
-    ventilator_state_ctl =    data_from_master[3];
-    pipevent_dutycycle_ctl =  data_from_master[4];
-    pipevent_minute_ON =      data_from_master[5];
-    pipevent_minute_OFF =     data_from_master[6];
+//     heater_state_ctl =        data_from_master[0];   
+//     pipevent_state_ctl =      data_from_master[1];
+//     led_state_ctl =           data_from_master[2];
+//     ventilator_state_ctl =    data_from_master[3];
+//     pipevent_dutycycle_ctl =  data_from_master[4];
+//     pipevent_minute_ON =      data_from_master[5];
+//     pipevent_minute_OFF =     data_from_master[6];
         
-    if (debug_master2slave == true) {    
-      PRINT_VARIABLE(heater_state_ctl);
-      PRINT_VARIABLE(pipevent_state_ctl);
-      PRINT_VARIABLE(led_state_ctl);
-      PRINT_VARIABLE(ventilator_state_ctl);
-      PRINT_VARIABLE(pipevent_dutycycle_ctl);
-      PRINT_VARIABLE(pipevent_minute_ON);
-      PRINT_VARIABLE(pipevent_minute_OFF);
-    }
-  }
-  
-  // Setze alle Werte im Array auf 0
-  for (int i = 0; i < data_bytes_from_master; i++) {
-    data_from_master[i] = 0;
-  }
-
-  if (debug_master2slave == true) {
-    Serial.println("Master2Slave: End");
-  }
-}
-
-// ############################################ Data REQUEST from MASTER
-void requestEvent() {
-
-  msg_req_cnt++;
-  if (debug_slave2master == true) {
-    Serial.println("Slave2Master: Message Request Counter - "+String(msg_req_cnt));
-    PRINT_VARIABLE(msg_req_cnt);
-  }
-
-  // Float in Integer umwandeln
-  TS01_int = TS01*10;
-  TS02_int = TS02*10;
-  TS03_int = TS03*10;
-  duty_cycle_int = duty_cycle*10;
+//   // Float in Integer umwandeln
+//   TS01_int = TS01*10;
+//   TS02_int = TS02*10;
+//   TS03_int = TS03*10;
+//   duty_cycle_int = duty_cycle*10;
         
-  // Integer in Byte umwandeln für die Übertragung per I2C
-  send0 = lowByte(TS01_int); 
-  send1 = highByte(TS01_int);
-  send2 = lowByte(TS02_int); 
-  send3 = highByte(TS02_int);
-  send4 = lowByte(TS03_int); 
-  send5 = highByte(TS03_int);
-  send6 = lowByte(duty_cycle_int); 
-  send7 = highByte(duty_cycle_int);
-  send8 =  heater_state;
-  send9 =  pipevent_state;
-  send10 = led_state;
-  send11 = ventilator_state;
-  send12 = _hour;
-  send13 = _minute;
-  send14 = lowByte(debocap_percentage);
-  send15 = highByte(debocap_percentage);
-  send16 = msg_req_cnt;
-  send17 = FS01_LF_int;
-  send18 = FS02_LF_int;
+//   // Integer in Byte umwandeln für die Übertragung per I2C
+//   send0 = lowByte(TS01_int); 
+//   send1 = highByte(TS01_int);
+//   send2 = lowByte(TS02_int); 
+//   send3 = highByte(TS02_int);
+//   send4 = lowByte(TS03_int); 
+//   send5 = highByte(TS03_int);
+//   send6 = lowByte(duty_cycle_int); 
+//   send7 = highByte(duty_cycle_int);
+//   send8 =  heater_state;
+//   send9 =  pipevent_state;
+//   send10 = led_state;
+//   send11 = ventilator_state;
+//   send12 = _hour;
+//   send13 = _minute;
+//   send14 = lowByte(debocap_percentage);
+//   send15 = highByte(debocap_percentage);
+//   send16 = msg_req_cnt;
+//   send17 = FS01_LF_int;
+//   send18 = FS02_LF_int;
 
-  if (debug_slave2master == true) {
-    PRINT_VARIABLE(send0);
-    PRINT_VARIABLE(send1);
-    PRINT_VARIABLE(send2);
-    PRINT_VARIABLE(send3);
-    PRINT_VARIABLE(send4);
-    PRINT_VARIABLE(send5);
-    PRINT_VARIABLE(send6);
-    PRINT_VARIABLE(send7);
-    PRINT_VARIABLE(send8);
-    PRINT_VARIABLE(send9);
-    PRINT_VARIABLE(send10);
-    PRINT_VARIABLE(send11);
-    PRINT_VARIABLE(send12);
-    PRINT_VARIABLE(send13);
-    PRINT_VARIABLE(send14);
-    PRINT_VARIABLE(send15);
-    PRINT_VARIABLE(send16);
-    PRINT_VARIABLE(send17);
-    PRINT_VARIABLE(send18);
-  }
 
-  // Sende Daten an den Master
-  Wire.write(send0);
-  Wire.write(send1);
-  Wire.write(send2);
-  Wire.write(send3);
-  Wire.write(send4);
-  Wire.write(send5);
-  Wire.write(send6);
-  Wire.write(send7);
-  Wire.write(send8);
-  Wire.write(send9);
-  Wire.write(send10);
-  Wire.write(send11);
-  Wire.write(send12);
-  Wire.write(send13);
-  Wire.write(send14);
-  Wire.write(send15);
-  Wire.write(send16);
-  Wire.write(send17);
-  Wire.write(send18);
 
-  if (debug_slave2master == true) {
-    Serial.println("Slave2Master: End");
-  }
-}
+

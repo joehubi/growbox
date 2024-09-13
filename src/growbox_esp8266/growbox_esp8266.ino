@@ -30,14 +30,14 @@
     float dutycycle = 0.0;
     int dutycycle_int = 0;
 
-    byte pipevent_state = 0;                   // 0=OFF, 1=ON
+    int pipevent_state = 0;                   // 0=OFF, 1=ON
     String pipevent_state_str = "...";
-    byte pipevent_state_ctl = 2;               // 0=OFF, 1=ON, 2=Intervall
+    int pipevent_state_ctl = 2;               // 0=OFF, 1=ON, 2=Intervall
     String pipevent_state_ctl_str = "...";
-    byte pipevent_dutycycle_ctl = 15;          // Duty cycle control (%)
+    int pipevent_dutycycle_ctl = 15;          // Duty cycle control (%)
 
-    byte pipevent_minute_ON     = 4;
-    byte pipevent_minute_OFF    = 2;
+    int pipevent_minute_ON     = 4;
+    int pipevent_minute_OFF    = 2;
 
   // ######################## Sensors
     float TS01 = 0.0;
@@ -53,10 +53,11 @@
     int debocap_percentage = 0; // 0..100 % Bodenfeuchte
 
   // ######################## RTC Time
-    byte word_hour = 0;
-    byte word_minute = 0;
+    int word_hour = 0;
+    int word_minute = 0;
 
   // ######################## Timers
+    const bool debug_timers = true;
     unsigned long millisec;           // time-ms
     unsigned long cycle_read_pre = 0;
     const unsigned long cycle_read_period = 1500;  // in ms
@@ -72,19 +73,19 @@
     AsyncWebServer server(80);                // Create AsyncWebServer object on port 8888
 
   // ######################## Heater
-    byte heater_state = 0;                     // 0=OFF, 1=ON
+    int heater_state = 0;                     // 0=OFF, 1=ON
     String heater_state_str = "...";
-    byte heater_state_ctl = 1;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+    int heater_state_ctl = 1;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
     String heater_state_ctl_str = "...";
   // ######################## LED
-    byte led_state = 0;                      // 0=OFF, 1=ON
+    int led_state = 0;                      // 0=OFF, 1=ON
     String led_state_str = "...";
-    byte led_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+    int led_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
     String led_state_ctl_str = "...";
   // ######################## Ventilator
-    byte ventilator_state = 0;                      // 0=OFF, 1=ON
+    int ventilator_state = 0;                      // 0=OFF, 1=ON
     String ventilator_state_str = "...";
-    byte ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+    int ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
     String ventilator_state_ctl_str = "...";
 
 // ######################## Functions
@@ -250,167 +251,166 @@
 
 void setup(){
 
-  // ######################## SoftwareSerial
-    pinMode(rxPin, INPUT);
-    pinMode(txPin, OUTPUT);
-    SoftwareSerial_ESP8266.begin(9600);
+  // Setup
+    // ######################## SoftwareSerial
+      pinMode(rxPin, INPUT);
+      pinMode(txPin, OUTPUT);
+      SoftwareSerial_ESP8266.begin(9600);
 
-  // ######################## Debug Monitor
-    Serial.begin(9600);   // for serial output in window / debugging
-    while (!Serial) {
-      ; // wait for serial port to connect
-    }
+    // ######################## Debug Monitor
+      Serial.begin(9600);   // for serial output in window / debugging
+      while (!Serial) {
+        ; // wait for serial port to connect
+      }
 
-  // ######################## Initialize SPIFFS (for web server)
-    if(!SPIFFS.begin()){
-      Serial.println("An Error has occurred while mounting SPIFFS");
-      return;
-    }
+    // ######################## Initialize SPIFFS (for web server)
+      if(!SPIFFS.begin()){
+        Serial.println("An Error has occurred while mounting SPIFFS");
+        return;
+      }
 
-  //######################## WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(1000);
-      Serial.println("Connecting to WiFi ...");
-    }
-    Serial.println(WiFi.localIP()); // Print ESP32 Local IP Address
+    // ######################## WiFi.mode(WIFI_STA);
+      WiFi.begin(ssid, password);
+      while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi ...");
+      }
+      Serial.println(WiFi.localIP()); // Print ESP32 Local IP Address
 
-// ######################## Webserver GUI
-  Serial.println("Start programme");
-      
-  // ######################## Load style.css file
-    server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-      request->send(SPIFFS, "/style.css", "text/css");
-    });
+    // ######################## Webserver GUI
+        Serial.println("Start server setup");
+      // ######################## Load style.css file
+        server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+          request->send(SPIFFS, "/style.css", "text/css");
+        });
 
-  // ######################## Called when <IP>/ browsed (Refresh button)
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    });
-  
-  // ######################## Heater State Button (Called when <IP>/b1_off browsed)
-    server.on("/b1_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-      heater_state_ctl = 0;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    });
-    server.on("/b1_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-      heater_state_ctl = 1;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    }); 
-    server.on("/b1_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      heater_state_ctl = 2;
-    });
-
-  // ######################## Pipe ventilator state Button
-    server.on("/b21_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-      pipevent_state_ctl = 0;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    });
-    server.on("/b21_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-      pipevent_state_ctl = 1;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    });
-    server.on("/b21_on_intervall", HTTP_GET, [](AsyncWebServerRequest *request){  
-      pipevent_state_ctl = 2;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    });
+      // ######################## Called when <IP>/ browsed (Refresh button)
+        server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        });
     
-  // ######################## Pipe ventilator duty cycle Button
-    server.on("/b22_15", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_dutycycle_ctl = 15;
-    });  
-    server.on("/b22_30", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_dutycycle_ctl = 30;
-    });  
-    server.on("/b22_50", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_dutycycle_ctl = 50;
-    });  
-    server.on("/b22_80", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_dutycycle_ctl = 80;
-    });  
-          
-  // ######################## LED state Button
-    server.on("/b3_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-      led_state_ctl = 0;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    });
-    server.on("/b3_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-      led_state_ctl = 1;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    }); 
-    server.on("/b3_1806", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      led_state_ctl = 2;
-    });
-    server.on("/b3_1212", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      led_state_ctl = 3;
-    });
-      server.on("/b3_array", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      led_state_ctl = 4;
-    });
-  
-  // ######################## ventilator state Button
-    server.on("/b4_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-      ventilator_state_ctl = 0;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    });
-    server.on("/b4_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-      ventilator_state_ctl = 1;
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-    }); 
-    server.on("/b4_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      ventilator_state_ctl = 2;
-    });
-  
-  // ######################## Pipe ventilator ON-Zeit Button
-    server.on("/b5_2", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_minute_ON = 2;
-    });  
-    server.on("/b5_4", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_minute_ON = 4;
-    });  
-    server.on("/b5_6", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_minute_ON = 6;
-    });  
-    server.on("/b5_8", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_minute_ON = 8;
-    });  
+      // ######################## Heater State Button (Called when <IP>/b1_off browsed)
+        server.on("/b1_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+          heater_state_ctl = 0;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        });
+        server.on("/b1_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+          heater_state_ctl = 1;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        }); 
+        server.on("/b1_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          heater_state_ctl = 2;
+        });
 
-  // ######################## Pipe ventilator OFF-Zeit Button
-    server.on("/b6_0", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_minute_OFF = 0;
-    });  
-    server.on("/b6_2", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_minute_OFF = 2;
-    });  
-    server.on("/b6_4", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_minute_OFF = 4;
-    });  
-    server.on("/b6_6", HTTP_GET, [](AsyncWebServerRequest *request){  
-      request->send(SPIFFS, "/index.html", String(), false, processor);
-      pipevent_minute_OFF = 6;
-    }); 
-
-
-  // Start server
-  server.begin();
-  Serial.println("Server started");
+      // ######################## Pipe ventilator state Button
+        server.on("/b21_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+          pipevent_state_ctl = 0;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        });
+        server.on("/b21_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+          pipevent_state_ctl = 1;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        });
+        server.on("/b21_on_intervall", HTTP_GET, [](AsyncWebServerRequest *request){  
+          pipevent_state_ctl = 2;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        });
+        
+      // ######################## Pipe ventilator duty cycle Button
+        server.on("/b22_15", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_dutycycle_ctl = 15;
+        });  
+        server.on("/b22_30", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_dutycycle_ctl = 30;
+        });  
+        server.on("/b22_50", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_dutycycle_ctl = 50;
+        });  
+        server.on("/b22_80", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_dutycycle_ctl = 80;
+        });  
+              
+      // ######################## LED state Button
+        server.on("/b3_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+          led_state_ctl = 0;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        });
+        server.on("/b3_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+          led_state_ctl = 1;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        }); 
+        server.on("/b3_1806", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          led_state_ctl = 2;
+        });
+        server.on("/b3_1212", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          led_state_ctl = 3;
+        });
+          server.on("/b3_array", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          led_state_ctl = 4;
+        });
       
+      // ######################## ventilator state Button
+        server.on("/b4_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+          ventilator_state_ctl = 0;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        });
+        server.on("/b4_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+          ventilator_state_ctl = 1;
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+        }); 
+        server.on("/b4_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          ventilator_state_ctl = 2;
+        });
+      
+      // ######################## Pipe ventilator ON-Zeit Button
+        server.on("/b5_2", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_minute_ON = 2;
+        });  
+        server.on("/b5_4", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_minute_ON = 4;
+        });  
+        server.on("/b5_6", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_minute_ON = 6;
+        });  
+        server.on("/b5_8", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_minute_ON = 8;
+        });  
+
+      // ######################## Pipe ventilator OFF-Zeit Button
+        server.on("/b6_0", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_minute_OFF = 0;
+        });  
+        server.on("/b6_2", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_minute_OFF = 2;
+        });  
+        server.on("/b6_4", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_minute_OFF = 4;
+        });  
+        server.on("/b6_6", HTTP_GET, [](AsyncWebServerRequest *request){  
+          request->send(SPIFFS, "/index.html", String(), false, processor);
+          pipevent_minute_OFF = 6;
+        }); 
+
+      // ################### Start server
+        server.begin();
+        Serial.println("Server started");
+        
 }
 
 void loop(){
@@ -420,6 +420,10 @@ void loop(){
   // ############################ READ
     if ((millisec - cycle_read_pre > cycle_read_period)) {
       cycle_read_pre = millisec; 
+
+      if (debug_timers == true) {
+        Serial.println("Start READ cycle");
+      }
 
       // ################### READ
         if (SoftwareSerial_ESP8266.available()) {
@@ -457,9 +461,12 @@ void loop(){
     if ((millisec - cycle_send_pre > cycle_send_period)) {
       cycle_send_pre = millisec;
 
-      Serial.println("Send data on I2C to SLAVE (start)");
+      if (debug_timers == true) {
+        Serial.println("Start SEND cycle");
+      }
 
     // ################### SEND
+      Serial.println("Send data to ArduinoUNO (SoftwareSerial)");
       sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u", heater_state_ctl, pipevent_state_ctl, led_state_ctl, ventilator_state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
       SoftwareSerial_ESP8266.println(send_char_array);
       PRINT_VARIABLE(send_char_array);
