@@ -1,16 +1,14 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  13.09.2024
+  15.09.2024
 */
 
 // ################### Library
 
   // Lib's integrated in Arduino-Standard folder  
   #include <SoftwareSerial.h>
-  // #include <Wire.h>                 // https://github.com/codebendercc/arduino-library-files.git
   #include <RTClib.h>               // https://github.com/StephanFink/RTClib/
-  // #include <OneWire.h>              // https://www.pjrc.com/teensy/td_libs_OneWire.html
   #include <DallasTemperature.h>    // https://github.com/milesburton/Arduino-Temperature-Control-Library.git
   #include <DHT.h>                  // https://github.com/Khuuxuanngoc/DHT-sensor-library.git
 
@@ -82,8 +80,8 @@
       // ############################ Interupt-Output interrupt for pipe ventilator
         double duty_cycle   = 0.0;     // 0-100%. This duty cycle is present on pin 9 and inverted on Pin 10
         int duty_cycle_int  = 0;    
-        //int icr_const     = 8000;    // -> results in 1 Hz PWM cycle (debugging)
-        int icr_const       = 7;       // -> results in 1,12 kHz PWM cycle 
+        // int icr_const     = 8000;    // ONLY TIMER1 -> results in 1 Hz PWM cycle (debugging)
+        // int icr_const       = 7;     // ONLY TIMER1 -> results in 1,12 kHz PWM cycle 
 
       // ############################ Control of the pipe ventilator (NOT USED)
         // const float P_ = 2;           // P-Anteil
@@ -143,15 +141,13 @@
     #define rxPin 12
     #define txPin 13
     SoftwareSerial SoftwareSerial_Arduino(rxPin, txPin);
-    const bool debug_softwareserial = true;    
+    const bool debug_softwareserial = false;    
     // ################### READ
       const int incoming_char_size = 50; 
-      char incoming_char_array[incoming_char_size]; // max. receive 50 sign's in one incoming string
-
+      char incoming_char_array[incoming_char_size]; // max. number of sign's in one incoming string
     // ################### SEND
       char send_char_array[50]; // Puffer für die Datenübertragung (max. Länge der Nachricht festlegen)
       int snd_ctn = 0;
-
   // ################### RTC
     /*  Die RTC muss über die Pin's A4 und A5 verbunden werden (siehe Arduino UNO Pinout und Dokumentation https://github.com/StephanFink/RTClib/, UNO is ATmega328).
         Die Kommunikation ist I2C. 
@@ -196,7 +192,6 @@
     unsigned long millisec;           // arduino time-ms
 
 // ################### Functions
-
   // ############################ RTC
     RTC_s getRTC() {
         DateTime now = RTC.now();
@@ -217,11 +212,11 @@ void setup(void){
   // ################### Initial values (if ESP8266 is not available)
     // In case of no ESP8266 (Node MCU) connection set initial values
     // These values are immediately overwritten by the ESP8266
-    heater_state_ctl      = 0;    // OFF
-    pipevent_state_ctl    = 1;    // ON    
-    led_state_ctl         = 3;    // 12/12
-    ventilator_state_ctl  = 1;    // ON
-    pipevent_dutycycle_ctl = 50;  // 50 %
+    heater_state_ctl        = 0;    // OFF
+    pipevent_state_ctl      = 1;    // ON    
+    led_state_ctl           = 2;    // 18/6
+    ventilator_state_ctl    = 1;    // ON
+    pipevent_dutycycle_ctl  = 50;   // 50 %
 
   // ################### Debugging Schnittstelle  
     Serial.begin(9600);             // for Debugging/print  
@@ -233,8 +228,6 @@ void setup(void){
     pinMode(rxPin, INPUT);
     pinMode(txPin, OUTPUT);
     SoftwareSerial_Arduino.begin(9600);
-
-
   // ################### Digital-Output
     pinMode(heater_pin, OUTPUT);
     pinMode(pipevent_pin, OUTPUT);
@@ -319,314 +312,298 @@ void setup(void){
     //pinMode(pot1, INPUT);                                                   // Debugging/Simulation
     //pinMode(pot2, INPUT);                                                   // Debugging/Simulation
 }
-
 void loop(void){
-  
-millisec = millis();      // get time from arduino-clock (time since arduino is running in ms)
+  millisec = millis();  // get time from arduino-clock (time since arduino is running in ms)
+  // ################### 500 ms
+    if (millisec - cycle_500ms_dt >= cycle_500ms) {
+      cycle_500ms_dt = millisec;
 
-// ################### 500 ms
-  if (millisec - cycle_500ms_dt >= cycle_500ms) {
-    cycle_500ms_dt = millisec;
-
-    if (debug_timers == true) {
-      Serial.println("<Start> 500 ms");
-    }
-
-    // ################### READ SoftwareSerial
-      if (SoftwareSerial_Arduino.overflow()) {
-          Serial.println("SoftwareSerial Arduino overflow!");
+      if (debug_timers == true) {
+        Serial.println("<Start> 500 ms");
       }
-      if (SoftwareSerial_Arduino.available()) {
-        delay(50);  // short delay, to be sure all data is present at the Rx
-        String _incoming_string = SoftwareSerial_Arduino.readStringUntil('\n'); // read Rx
-        // int _lenght = _incoming_string.length();  // lenght for debugging
-        // PRINT_VARIABLE(_lenght);                  // lenght for debugging
-        _incoming_string.toCharArray(incoming_char_array, incoming_char_size);     // copy data to char-Array (for sscanf)
-        if (debug_softwareserial == true) {
-          PRINT_VARIABLE(incoming_char_array);
-        }
-        // decode data from char-array
-        byte _number_of_items = sscanf(incoming_char_array,"%u,%u,%u,%u,%u,%u,%u", &heater_state_ctl, &pipevent_state_ctl, &led_state_ctl, &ventilator_state_ctl, &pipevent_dutycycle_ctl, &pipevent_minute_ON, &pipevent_minute_OFF);
-        PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
-      }
-      if (SoftwareSerial_Arduino.overflow()) {
-          Serial.println("SoftwareSerial Arduino overflow!");
-      }
-  }
 
-// ################### 1000 ms
-
-  if (millisec - cycle_1000ms_dt >= cycle_1000ms) {
-    cycle_1000ms_dt = millisec;
-
-    if (debug_timers == true) {
-      Serial.println("<Start> 1000 ms");
-    }
-
-    // ################### Calculate times with second-timer
-      _second++;
-    
-      if (_second >= 60) {
-        _second = 0;
-        _minute++;
-        if (_minute >= 60) {
-          _minute = 0;
-          _hour++;
-          if (_hour >= 24) {
-            _hour = 0;
-            
-            if (RTC_use == true) {
-              // RTC_s rtc_values  = getRTC(); // Aktuelle Uhrzeit einmal am Tag von der RTC holen
-              // _minute           = rtc_values.minute;
-              // _hour             = rtc_values.hour;
-              // _hourminute       = rtc_values.hourminute;
-            }
+      // ################### READ SoftwareSerial
+        if (SoftwareSerial_Arduino.available()) {
+          delay(50);  // short delay, to be sure all data is present at the Rx
+          String _incoming_string = SoftwareSerial_Arduino.readStringUntil('\n'); // read Rx
+          _incoming_string.toCharArray(incoming_char_array, incoming_char_size);     // copy data to char-Array (for sscanf)
+          if (debug_softwareserial == true) {
+            int _lenght = _incoming_string.length();  // lenght for debugging
+            PRINT_VARIABLE(_lenght);                  // lenght for debugging
+            PRINT_VARIABLE(incoming_char_array);
+          }
+          // decode data from char-array
+          byte _number_of_items = sscanf(incoming_char_array,"%u,%u,%u,%u,%u,%u,%u", &heater_state_ctl, &pipevent_state_ctl, &led_state_ctl, &ventilator_state_ctl, &pipevent_dutycycle_ctl, &pipevent_minute_ON, &pipevent_minute_OFF);
+          if (debug_softwareserial == true) {
+            PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
           }
         }
-        _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)
-      }
-      
-      if (debug_second_timer == true) {
-        Serial.println("Zeiten"); 
-        Serial.println("Sekunde: "+String(_second));
-        Serial.println("Minute: "+String(_minute));
-        Serial.println("Stunde: "+String(_hour));
-        Serial.println("Stundenminute: "+String(_hourminute));
-      }
-
-    // ################### Trigger für Statuswechsel (LED / Ventilator) updaten)
-      vent_minute     = _minute;
-      pipevent_minute = _minute;
-      led_minute      = _minute;
-    
-    // ################### pipe ventilator
-      // ################### control
-        switch (pipevent_state_ctl) {
-          case 0:
-            pipevent_state = 0;
-            break;
-          case 1:
-            pipevent_state = 1;
-            break;
-          case 2:
-            // At change of minute value
-            // Pipe ventilator should rest every few minutes to decrease heat-cost for growbox
-            if (pipevent_minute != pipevent_minute_pre) {
-              pipevent_minute_pre = pipevent_minute;
-        
-              pipevent_minute_count++;    // add counter
-              //Serial.println("pipevent_minute_count: "+String(pipevent_minute_count));
-                    
-              if (pipevent_minute_count >= pipevent_minute_change) {
-                //Serial.println("Send pipeventilator to rest to reduce heating cost");
-                //Serial.println("pipevent_minute_change: "+String(pipevent_minute_change));
-                
-                // reset counter
-                pipevent_minute_count = 0;
-        
-                // Invertiere den Wert von ...
-                if (pipevent_state == 0) {
-                  pipevent_state = 1;
-                  pipevent_minute_change = pipevent_minute_ON; // Set pipeventilator ON for X min
-                  //Serial.println("pipeventilator ON for (min) - "+String(pipevent_minute_ON));
-                }
-                else {
-                  pipevent_state = 0;
-                  pipevent_minute_change = pipevent_minute_OFF; // Set pipeventilator ON for X min
-                  //Serial.println("pipeventilator OFF for (min) - "+String(pipevent_minute_OFF));
-                }
-              }
-              
-            }
-            break;
-                    
-          default:
-          break;
-        }
-
-      // ################### dutycycle
-        switch (pipevent_dutycycle_ctl) {
-          case 15:
-            duty_cycle = 15.0;
-            break;
-          case 30:
-            duty_cycle = 30.0;
-            break;
-          case 50:
-            duty_cycle = 50.0;
-            break;
-          case 80:
-            duty_cycle = 80.0;
-            break;
-                                        
-          default:
-            duty_cycle = 0.0;
-          break;
-        }
-
-      // ################### interrupt output
-        // OCR1A = (duty_cycle/100)*icr_const;     // Send to interrupt-output
-        // OCR1B = (duty_cycle/100)*icr_const;     // Send to interrupt-output        
-        OCR2A = (duty_cycle * 255) / 100; // duty_cycle für Timer2 anpassen, 0 bis 255
-
-      // ################### Pipe ventilator controller (NOT USED AT THE MOMENT)
-        // T_act = TS01;   
-        // T_err = (T_act - T_set);                  // calc error
-        // T_i_prev = T_i_prev + T_err;              // integrate
-        // duty_cycle = P_ * T_err + i_ * T_i_prev;  // calc output (P-Anteil + I-Anteil)
-
-    // ################### to interface (SoftwareSerial)      
-      snd_ctn++;
-      sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", TS01_int,TS02_int,TS03_int,duty_cycle_int,heater_state,pipevent_state,led_state,ventilator_state,_hour,_minute,debocap_percentage,snd_ctn,FS01_LF_int,FS02_LF_int);
-      // sprintf(send_char_array, "8888,0,0,0,0,0,0,0,0,0,%u", snd_ctn);     
-      SoftwareSerial_Arduino.println(send_char_array);
-      if (debug_softwareserial == true) {
-        PRINT_VARIABLE(send_char_array);
-      }
-      if (SoftwareSerial_Arduino.overflow()) {
-          Serial.println("SoftwareSerial Arduino overflow!");
-      }
-  }
-
-// ################### 1500 ms
-
-  if (millisec - cycle_1500ms_dt >= cycle_1500ms) {
-    cycle_1500ms_dt = millisec;
-    
-    if (debug_timers == true) {
-      Serial.println("<Start> 1500 ms"); 
     }
 
-    // ################### FLOAT -> INT
-      TS01_int = TS01*10;
-      TS02_int = TS02*10;
-      TS03_int = TS03*10;
-      duty_cycle_int = duty_cycle*10;
+  // ################### 1000 ms
 
-    // ################### calculate control/states
-      // ################### heater
-        switch (heater_state_ctl) {
-          case 0:
-            heater_state = 0;
-            break;
-          case 1:
-            heater_state = 1;
-            break;
-          case 2:
-            // Add code for automation here 
-            break;  
-          default:
-            break;
+    if (millisec - cycle_1000ms_dt >= cycle_1000ms) {
+      cycle_1000ms_dt = millisec;
+
+      if (debug_timers == true) {
+        Serial.println("<Start> 1000 ms");
+      }
+
+      // ################### Calculate times with second-timer
+        _second++;
+      
+        if (_second >= 60) {
+          _second = 0;
+          _minute++;
+          if (_minute >= 60) {
+            _minute = 0;
+            _hour++;
+            if (_hour >= 24) {
+              _hour = 0;
+              
+              if (RTC_use == true) {
+                RTC_s rtc_values  = getRTC(); // Aktuelle Uhrzeit einmal am Tag von der RTC holen
+                _minute           = rtc_values.minute;
+                _hour             = rtc_values.hour;
+                _hourminute       = rtc_values.hourminute;
+              }
+            }
+          }
+          _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)
+        }
+        
+        if (debug_second_timer == true) {
+          Serial.println("Zeiten"); 
+          Serial.println("Sekunde: "+String(_second));
+          Serial.println("Minute: "+String(_minute));
+          Serial.println("Stunde: "+String(_hour));
+          Serial.println("Stundenminute: "+String(_hourminute));
         }
 
-      // ################### ventilator
-        switch (ventilator_state_ctl) {
+      // ################### Trigger für Statuswechsel (LED / Ventilator) updaten)
+        vent_minute     = _minute;
+        pipevent_minute = _minute;
+        led_minute      = _minute;
+      
+      // ################### pipe ventilator
+        // ################### control
+          switch (pipevent_state_ctl) {
+            case 0:
+              pipevent_state = 0;
+              break;
+            case 1:
+              pipevent_state = 1;
+              break;
+            case 2:
+              // At change of minute value
+              // Pipe ventilator should rest every few minutes to decrease heat-cost for growbox
+              if (pipevent_minute != pipevent_minute_pre) {
+                pipevent_minute_pre = pipevent_minute;
+          
+                pipevent_minute_count++;    // add counter
+                //Serial.println("pipevent_minute_count: "+String(pipevent_minute_count));
+                      
+                if (pipevent_minute_count >= pipevent_minute_change) {
+                  //Serial.println("Send pipeventilator to rest to reduce heating cost");
+                  //Serial.println("pipevent_minute_change: "+String(pipevent_minute_change));
+                  
+                  // reset counter
+                  pipevent_minute_count = 0;
+          
+                  // Invertiere den Wert von ...
+                  if (pipevent_state == 0) {
+                    pipevent_state = 1;
+                    pipevent_minute_change = pipevent_minute_ON; // Set pipeventilator ON for X min
+                    //Serial.println("pipeventilator ON for (min) - "+String(pipevent_minute_ON));
+                  }
+                  else {
+                    pipevent_state = 0;
+                    pipevent_minute_change = pipevent_minute_OFF; // Set pipeventilator ON for X min
+                    //Serial.println("pipeventilator OFF for (min) - "+String(pipevent_minute_OFF));
+                  }
+                }
+                
+              }
+              break;
+                      
+            default:
+            break;
+          }
+
+        // ################### dutycycle
+          switch (pipevent_dutycycle_ctl) {
+            case 15:
+              duty_cycle = 15.0;
+              break;
+            case 30:
+              duty_cycle = 30.0;
+              break;
+            case 50:
+              duty_cycle = 50.0;
+              break;
+            case 80:
+              duty_cycle = 80.0;
+              break;
+                                          
+            default:
+              duty_cycle = 0.0;
+            break;
+          }
+
+        // ################### interrupt output  
+          OCR2A = (duty_cycle * 255) / 100; // duty_cycle für Timer2 anpassen, 0 bis 255
+
+        // ################### Pipe ventilator controller (NOT USED AT THE MOMENT)
+          // T_act = TS01;   
+          // T_err = (T_act - T_set);                  // calc error
+          // T_i_prev = T_i_prev + T_err;              // integrate
+          // duty_cycle = P_ * T_err + i_ * T_i_prev;  // calc output (P-Anteil + I-Anteil)
+      // ################### FLOAT -> INT (for sending to ESP8266)
+        TS01_int = TS01*10;
+        TS02_int = TS02*10;
+        TS03_int = TS03*10;
+        duty_cycle_int = duty_cycle*10;
+      // ################### to interface (SoftwareSerial)      
+        snd_ctn++;
+        sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", TS01_int,TS02_int,TS03_int,duty_cycle_int,heater_state,pipevent_state,led_state,ventilator_state,_hour,_minute,debocap_percentage,snd_ctn,FS01_LF_int,FS02_LF_int);
+        SoftwareSerial_Arduino.println(send_char_array);
+        if (debug_softwareserial == true) {
+          PRINT_VARIABLE(send_char_array);
+        }
+    }
+
+  // ################### 1500 ms
+
+    if (millisec - cycle_1500ms_dt >= cycle_1500ms) {
+      cycle_1500ms_dt = millisec;
+      
+      if (debug_timers == true) {
+        Serial.println("<Start> 1500 ms"); 
+      }
+
+      // ################### calculate control/states
+        // ################### heater
+          switch (heater_state_ctl) {
+            case 0:
+              heater_state = 0;
+              break;
+            case 1:
+              heater_state = 1;
+              break;
+            case 2:
+              // Add code for automation here 
+              break;  
+            default:
+              break;
+          }
+
+        // ################### ventilator
+          switch (ventilator_state_ctl) {
+            case 0: // manual OFF
+              ventilator_state = 0;
+              break;
+            case 1: // manual ON
+              ventilator_state = 1;
+              break;
+            case 2: // automatic   
+            // At change of minute value
+            if (vent_minute != vent_minute_pre) {
+              vent_minute_pre = vent_minute;
+
+              if (debug_array == true) {
+              //Serial.println("check ventilator state");
+              }
+
+              // Change ventilator state (on/off) according to actual minutes and state-array
+              for (word i = 0; (i < sizeof(vent_min_array) / sizeof(vent_min_array[0]) && i < 1000) ; i++){
+                if (_minute == vent_min_array[i]) {
+                  ventilator_state = vent_state_array[i];
+                  if (debug_array == true) {
+                    //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
+                  }
+                  i = 1000; //exit for-loop
+                }
+                else if (_minute < vent_min_array[i]) {
+                  ventilator_state = vent_state_array[i-1];
+                  if (debug_array == true) {
+                    //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
+                  }
+                  i = 1000; //exit for-loop       
+                }
+                // next loop cycle
+                }  
+              break;
+            }
+          }
+        
+        // ################### LED
+        switch (led_state_ctl) {
           case 0: // manual OFF
-            ventilator_state = 0;
+            led_state = 0;
             break;
           case 1: // manual ON
-            ventilator_state = 1;
+            led_state = 1;
             break;
-          case 2: // automatic   
-          // At change of minute value
-          if (vent_minute != vent_minute_pre) {
-            vent_minute_pre = vent_minute;
-
-            if (debug_array == true) {
-            //Serial.println("check ventilator state");
+          case 2: // 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr)
+            if ((_hourminute >= 240) && (_hourminute <= 1320)) {
+              led_state = 1;
             }
-
-            // Change ventilator state (on/off) according to actual minutes and state-array
-            for (word i = 0; (i < sizeof(vent_min_array) / sizeof(vent_min_array[0]) && i < 1000) ; i++){
-              if (_minute == vent_min_array[i]) {
-                ventilator_state = vent_state_array[i];
-                if (debug_array == true) {
-                  //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
-                }
-                i = 1000; //exit for-loop
-              }
-              else if (_minute < vent_min_array[i]) {
-                ventilator_state = vent_state_array[i-1];
-                if (debug_array == true) {
-                  //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
-                }
-                i = 1000; //exit for-loop       
-              }
-              // next loop cycle
-              }  
+            else {
+              led_state = 0;
+            }
             break;
-          }
+          case 3: // 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr)
+            if ((_hourminute >= 480) && (_hourminute <= 1200)) {
+              led_state = 1;
+            }
+            else {
+              led_state = 0;
+            }
+            break;
+          case 4: // Entsprechend Array   
+            // At change of minute value
+            if (led_minute != led_minute_pre) {
+              led_minute_pre = led_minute;
+
+              if (debug_array == true) {
+              //Serial.println("check LED state");
+              }
+
+              // Change led state (on/off) according to actual hour-minutes and state-array
+              for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
+                if (_hourminute == led_hourm_array[i]) {
+                  led_state = led_state_array[i];
+                  if (debug_array == true) {
+                    //Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(_hourminute));
+                  }
+                  i = 1000; //exit for-loop
+                }
+                else if (_hourminute < led_hourm_array[i]) {
+                  led_state = led_state_array[i-1];
+                  if (debug_array == true) {
+                    //Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(_hourminute));
+                  }
+                  i = 1000; //exit for-loop       
+                }
+                // next loop cycle
+                }  
+              break;
+              }    
         }
-      
-      // ################### LED
-      switch (led_state_ctl) {
-        case 0: // manual OFF
-          led_state = 0;
-          break;
-        case 1: // manual ON
-          led_state = 1;
-          break;
-        case 2: // 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr)
-          if ((_hourminute >= 240) && (_hourminute <= 1320)) {
-            led_state = 1;
-          }
-          else {
-            led_state = 0;
-          }
-          break;
-        case 3: // 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr)
-          if ((_hourminute >= 480) && (_hourminute <= 1200)) {
-            led_state = 1;
-          }
-          else {
-            led_state = 0;
-          }
-          break;
-        case 4: // Entsprechend Array   
-          // At change of minute value
-          if (led_minute != led_minute_pre) {
-            led_minute_pre = led_minute;
-
-            if (debug_array == true) {
-            //Serial.println("check LED state");
-            }
-
-            // Change led state (on/off) according to actual hour-minutes and state-array
-            for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
-              if (_hourminute == led_hourm_array[i]) {
-                led_state = led_state_array[i];
-                if (debug_array == true) {
-                  //Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(_hourminute));
-                }
-                i = 1000; //exit for-loop
-              }
-              else if (_hourminute < led_hourm_array[i]) {
-                led_state = led_state_array[i-1];
-                if (debug_array == true) {
-                  //Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(_hourminute));
-                }
-                i = 1000; //exit for-loop       
-              }
-              // next loop cycle
-              }  
-            break;
-            }    
-      }
 
 
-    // ################### write hardware outputs
-      digitalWrite(heater_pin,       heater_state);
-      digitalWrite(pipevent_pin,    pipevent_state);
-      digitalWrite(led_pin,         led_state);
-      digitalWrite(ventilator_pin,  ventilator_state);  
+      // ################### write hardware outputs
+        digitalWrite(heater_pin,       heater_state);
+        digitalWrite(pipevent_pin,    pipevent_state);
+        digitalWrite(led_pin,         led_state);
+        digitalWrite(ventilator_pin,  ventilator_state);  
 
-    // ################### checking free dynamic memory
-      // Serial.print("Freier Speicher: ");  
-      // Serial.println(freeMemory());
-  }
+      // ################### checking free dynamic memory
+        // Serial.print("Freier Speicher: ");  
+        // Serial.println(freeMemory());
+    }
 
-// ################### 2000 ms
-
+  // ################### 2000 ms
   if ((millisec - cycle_2000ms_dt > cycle_2000ms)) {
     cycle_2000ms_dt = millisec;
   

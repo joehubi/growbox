@@ -1,7 +1,7 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  13.09.24
+  15.09.24
 */
 
 // ################### Libray
@@ -19,14 +19,15 @@
     #define rxPin D5
     #define txPin D6
     SoftwareSerial SoftwareSerial_ESP8266(rxPin, txPin);
-    const bool debug_softwareserial = true;   
+    const bool debug_softwareserial = false;   
     int msg_req_feedback = 0;
     // ################### READ
-      char incoming_char_array[200]; // max. number of signs in data string 
-      const int incoming_char_size = 200;   
+      const int incoming_char_size = 200;  
+      char incoming_char_array[incoming_char_size]; // max. number of signs in data string 
     // ################### SEND
       char send_char_array[50];
-      int snd_ctn = 5;     
+      int snd_active = 0; // > 5 = SEND aktivieren 
+      const int snd_counts_to_active = 20; 
   // ################### pipe ventilator
     float dutycycle = 0.0;
     int dutycycle_int = 0;
@@ -35,7 +36,7 @@
     String pipevent_state_str = "...";
     int pipevent_state_ctl = 2;               // 0=OFF, 1=ON, 2=Intervall
     String pipevent_state_ctl_str = "...";
-    int pipevent_dutycycle_ctl = 15;          // Duty cycle control (%)
+    int pipevent_dutycycle_ctl = 50;          // Duty cycle control (%)
 
     int pipevent_minute_ON     = 4;
     int pipevent_minute_OFF    = 2;
@@ -253,6 +254,12 @@
 
 
 void setup(){
+  // ################### Initial values
+    heater_state_ctl        = 0;    // OFF
+    pipevent_state_ctl      = 1;    // ON    
+    led_state_ctl           = 2;    // 18/6
+    ventilator_state_ctl    = 1;    // ON
+    pipevent_dutycycle_ctl  = 50;   // 50 %
   // ################### Debug Monitor
     Serial.begin(9600);   // for serial output in window / debugging
     while (!Serial) {
@@ -413,7 +420,6 @@ void setup(){
         Serial.println("Server started");
         
 }
-
 void loop(){
   millisec = millis();
   // ################### 500 ms
@@ -425,11 +431,11 @@ void loop(){
       }
 
       // ################### READ
-        if (SoftwareSerial_ESP8266.overflow()) {
-            Serial.println("SoftwareSerial ESP8266 overflow!");
-        }
         if (SoftwareSerial_ESP8266.available()) {
-          delay(50);  // short delay that all received data is present at the Rx
+          if (snd_active < snd_counts_to_active) {
+            snd_active++; // count to 20
+          }
+          delay(50);    // short delay that all received data is present at the Rx
           String _incoming_string = SoftwareSerial_ESP8266.readStringUntil('\n'); // read Rx until \n
           _incoming_string.toCharArray(incoming_char_array, incoming_char_size); // copy data to char-Array (for sscanf)
           if (debug_softwareserial == true) {
@@ -437,10 +443,7 @@ void loop(){
           }
           // decode data from char-array
           sscanf(incoming_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", &TS01_int, &TS02_int, &TS03_int, &dutycycle_int, &heater_state, &pipevent_state, &led_state, &ventilator_state, &word_hour, &word_minute, &debocap_percentage, &msg_req_feedback, &FS01_LF, &FS02_LF);
-        }
-        if (SoftwareSerial_ESP8266.overflow()) {
-            Serial.println("SoftwareSerial ESP8266 overflow!");
-        }               
+        }             
     }
   
   // ################### 1000 ms 
@@ -464,16 +467,18 @@ void loop(){
         pipevent_state_ctl_str    = state_ctl_txt(pipevent_state_ctl);
         
       // ################### States from Arduino 
-        heater_state_str       = state_txt(heater_state);
+        heater_state_str      = state_txt(heater_state);
         pipevent_state_str    = state_txt(pipevent_state);
         led_state_str         = state_txt(led_state);
         ventilator_state_str  = state_txt(ventilator_state);   
 
       // ################### SEND
-        sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u", heater_state_ctl, pipevent_state_ctl, led_state_ctl, ventilator_state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
-        SoftwareSerial_ESP8266.println(send_char_array);
-        if (debug_softwareserial == true) {
-          PRINT_VARIABLE(send_char_array);
+        if (snd_active >= snd_counts_to_active) {
+          sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u", heater_state_ctl, pipevent_state_ctl, led_state_ctl, ventilator_state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
+          SoftwareSerial_ESP8266.println(send_char_array);
+          if (debug_softwareserial == true) {
+            PRINT_VARIABLE(send_char_array);
+          }
         }
     }
    
