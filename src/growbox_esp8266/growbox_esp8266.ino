@@ -1,32 +1,33 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  10.09.24
+  13.09.24
 */
 
-// ######################## Libray
+// ################### Libray
   #include <ESP8266WiFi.h>        // https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266WiFi/src/ESP8266WiFi.h
   #include <ESPAsyncTCP.h>        // https://github.com/me-no-dev/ESPAsyncTCP
   #include <ESPAsyncWebServer.h>  // https://github.com/me-no-dev/ESPAsyncWebServer
   #include <FS.h>                 // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/FS.h
   #include <SoftwareSerial.h>
 
-// ######################## Variables
-  // ######################## Debugging
+// ################### Variables
+  // ################### Debugging
     #define PRINT_VARIABLE(var) Serial.print(#var " = "); Serial.println(var);
 
   // ################### SoftwareSerial
     #define rxPin D5
     #define txPin D6
     SoftwareSerial SoftwareSerial_ESP8266(rxPin, txPin);
+    const bool debug_softwareserial = true;   
     int msg_req_feedback = 0;
     // ################### READ
-      char incoming_char_array[50]; // max. number of signs in data string
-      int read_ctn = 0;         
+      char incoming_char_array[200]; // max. number of signs in data string 
+      const int incoming_char_size = 200;   
     // ################### SEND
       char send_char_array[50];
       int snd_ctn = 5;     
-  // ######################## pipe ventilator
+  // ################### pipe ventilator
     float dutycycle = 0.0;
     int dutycycle_int = 0;
 
@@ -39,7 +40,7 @@
     int pipevent_minute_ON     = 4;
     int pipevent_minute_OFF    = 2;
 
-  // ######################## Sensors
+  // ################### Sensors
     float TS01 = 0.0;
     float TS02 = 0.0;
     float TS03 = 0.0;
@@ -52,19 +53,21 @@
 
     int debocap_percentage = 0; // 0..100 % Bodenfeuchte
 
-  // ######################## RTC Time
+  // ################### RTC Time
     int word_hour = 0;
     int word_minute = 0;
 
-  // ######################## Timers
-    const bool debug_timers = true;
+  // ################### Timers
+    const bool debug_timers = false;
     unsigned long millisec;           // time-ms
-    unsigned long cycle_read_pre = 0;
-    const unsigned long cycle_read_period = 1500;  // in ms
-    unsigned long cycle_send_pre = 0;
-    const unsigned long cycle_send_period = 2000;  // in ms
 
-  // ######################## WiFi
+    const unsigned long cycle_500ms = 500;  // in ms
+    unsigned long cycle_500ms_dt = 0;
+
+    const unsigned long cycle_1000ms = 1000;  // in ms
+    unsigned long cycle_1000ms_dt = 0;
+
+  // ################### WiFi
     //int port = 8888;  //Port number
     //WiFiServer server(port);
 
@@ -72,23 +75,23 @@
     const char* password = "Stiller_83";      // wifi network
     AsyncWebServer server(80);                // Create AsyncWebServer object on port 8888
 
-  // ######################## Heater
+  // ################### Heater
     int heater_state = 0;                     // 0=OFF, 1=ON
     String heater_state_str = "...";
     int heater_state_ctl = 1;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
     String heater_state_ctl_str = "...";
-  // ######################## LED
+  // ################### LED
     int led_state = 0;                      // 0=OFF, 1=ON
     String led_state_str = "...";
     int led_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
     String led_state_ctl_str = "...";
-  // ######################## Ventilator
+  // ################### Ventilator
     int ventilator_state = 0;                      // 0=OFF, 1=ON
     String ventilator_state_str = "...";
     int ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
     String ventilator_state_ctl_str = "...";
 
-// ######################## Functions
+// ################### Functions
   // ######################## String function Switches/States
     String state_ctl_txt(int ctl){
       String _txt = "";
@@ -250,34 +253,32 @@
 
 
 void setup(){
+  // ################### Debug Monitor
+    Serial.begin(9600);   // for serial output in window / debugging
+    while (!Serial) {
+      ; // wait for serial port to connect
+    }
+    delay(1000);
+  // ################### SoftwareSerial
+    pinMode(rxPin, INPUT);
+    pinMode(txPin, OUTPUT);
+    SoftwareSerial_ESP8266.begin(9600);
+    delay(1000);
+  // ################### Initialize SPIFFS (for web server)
+    if(!SPIFFS.begin()){
+      Serial.println("An Error has occurred while mounting SPIFFS");
+      return;
+    }
 
-  // Setup
-    // ######################## SoftwareSerial
-      pinMode(rxPin, INPUT);
-      pinMode(txPin, OUTPUT);
-      SoftwareSerial_ESP8266.begin(9600);
+  // ################### WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      Serial.println("Connecting to WiFi ...");
+    }
+    Serial.println(WiFi.localIP()); // Print ESP32 Local IP Address
 
-    // ######################## Debug Monitor
-      Serial.begin(9600);   // for serial output in window / debugging
-      while (!Serial) {
-        ; // wait for serial port to connect
-      }
-
-    // ######################## Initialize SPIFFS (for web server)
-      if(!SPIFFS.begin()){
-        Serial.println("An Error has occurred while mounting SPIFFS");
-        return;
-      }
-
-    // ######################## WiFi.mode(WIFI_STA);
-      WiFi.begin(ssid, password);
-      while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Connecting to WiFi ...");
-      }
-      Serial.println(WiFi.localIP()); // Print ESP32 Local IP Address
-
-    // ######################## Webserver GUI
+  // ################### Webserver GUI
         Serial.println("Start server setup");
       // ######################## Load style.css file
         server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -414,65 +415,67 @@ void setup(){
 }
 
 void loop(){
-
   millisec = millis();
-
-  // ############################ READ
-    if ((millisec - cycle_read_pre > cycle_read_period)) {
-      cycle_read_pre = millisec; 
+  // ################### 500 ms
+    if ((millisec - cycle_500ms_dt > cycle_500ms)) {
+      cycle_500ms_dt = millisec; 
 
       if (debug_timers == true) {
-        Serial.println("Start READ cycle");
+        Serial.println("<Start> 500 ms");
       }
 
       // ################### READ
+        if (SoftwareSerial_ESP8266.overflow()) {
+            Serial.println("SoftwareSerial ESP8266 overflow!");
+        }
         if (SoftwareSerial_ESP8266.available()) {
           delay(50);  // short delay that all received data is present at the Rx
           String _incoming_string = SoftwareSerial_ESP8266.readStringUntil('\n'); // read Rx until \n
-          _incoming_string.toCharArray(incoming_char_array, 50); // copy data to char-Array (for sscanf)
-          PRINT_VARIABLE(incoming_char_array);  //debugging
-
+          _incoming_string.toCharArray(incoming_char_array, incoming_char_size); // copy data to char-Array (for sscanf)
+          if (debug_softwareserial == true) {
+            PRINT_VARIABLE(incoming_char_array);
+          }
           // decode data from char-array
           sscanf(incoming_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", &TS01_int, &TS02_int, &TS03_int, &dutycycle_int, &heater_state, &pipevent_state, &led_state, &ventilator_state, &word_hour, &word_minute, &debocap_percentage, &msg_req_feedback, &FS01_LF, &FS02_LF);
-          PRINT_VARIABLE(read_ctn);
-        }    
+        }
+        if (SoftwareSerial_ESP8266.overflow()) {
+            Serial.println("SoftwareSerial ESP8266 overflow!");
+        }               
+    }
+  
+  // ################### 1000 ms 
+    if ((millisec - cycle_1000ms_dt > cycle_1000ms)) {
+      cycle_1000ms_dt = millisec;
 
-      // Integer in Float umwandeln
+      if (debug_timers == true) {
+        Serial.println("<Start> 1000 ms");
+      }
+
+      // ################### Integer in Float umwandeln
         TS01 = float(TS01_int)/10;
         TS02 = float(TS02_int)/10;
         TS03 = float(TS03_int)/10;  
         dutycycle = float(dutycycle_int)/10; 
 
-      // ############################ Buttons 
+      // ################### Buttons 
         heater_state_ctl_str      = state_ctl_txt(heater_state_ctl);
         led_state_ctl_str         = state_ctl_led_txt(led_state_ctl);
         ventilator_state_ctl_str  = state_ctl_txt(ventilator_state_ctl);
         pipevent_state_ctl_str    = state_ctl_txt(pipevent_state_ctl);
         
-      // ############################ States from Arduino 
+      // ################### States from Arduino 
         heater_state_str       = state_txt(heater_state);
         pipevent_state_str    = state_txt(pipevent_state);
         led_state_str         = state_txt(led_state);
-        ventilator_state_str  = state_txt(ventilator_state);
-                
-    }
-  
-  // ############################ SEND 
-    if ((millisec - cycle_send_pre > cycle_send_period)) {
-      cycle_send_pre = millisec;
+        ventilator_state_str  = state_txt(ventilator_state);   
 
-      if (debug_timers == true) {
-        Serial.println("Start SEND cycle");
-      }
-
-    // ################### SEND
-      Serial.println("Send data to ArduinoUNO (SoftwareSerial)");
-      sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u", heater_state_ctl, pipevent_state_ctl, led_state_ctl, ventilator_state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
-      SoftwareSerial_ESP8266.println(send_char_array);
-      PRINT_VARIABLE(send_char_array);
-      
+      // ################### SEND
+        sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u", heater_state_ctl, pipevent_state_ctl, led_state_ctl, ventilator_state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
+        SoftwareSerial_ESP8266.println(send_char_array);
+        if (debug_softwareserial == true) {
+          PRINT_VARIABLE(send_char_array);
+        }
     }
    
-  delay(1);
 }
   
