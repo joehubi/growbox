@@ -1,14 +1,12 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  15.09.24
+  16.09.24
 */
 
 // ################### Libray
-  // #include <ESP8266WiFi.h>        // https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266WiFi/src/ESP8266WiFi.h
   #include <ESPAsyncTCP.h>        // https://github.com/me-no-dev/ESPAsyncTCP
   #include <ESPAsyncWebServer.h>  // https://github.com/me-no-dev/ESPAsyncWebServer
-  // #include <FS.h>                 // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/FS.h
   #include <SoftwareSerial.h>
 
 // ################### Variables
@@ -64,12 +62,9 @@
     unsigned long cycle_1000ms_dt = 0;
 
   // ################### WiFi
-    //int port = 8888;  //Port number
-    //WiFiServer server(port);
-
     const char* ssid = "Pumuckel";            // wifi network
     const char* password = "Stiller_83";      // wifi network
-    AsyncWebServer server(80);                // Create AsyncWebServer object on port 8888
+    AsyncWebServer server(80);                // Create AsyncWebServer object on port ...
   // ################### Actuators
     struct state_ctl {  // class for actuators to control and visualize states
       int state             = 0;         // 0=OFF, 1=ON, etc.
@@ -81,46 +76,25 @@
     state_ctl led; 
     state_ctl ventilator; 
     state_ctl pipevent;
-    // ################### pipe ventilator
-      // int pipevent_state = 0;                   // 0=OFF, 1=ON
-      // String pipevent_state_str = "...";
-      // int pipevent_state_ctl = 2;               // 0=OFF, 1=ON, 2=Intervall
-      // String pipevent_state_ctl_str = "...";
-    // ################### Heater
-      // int heater_state = 0;                     // 0=OFF, 1=ON
-      // String heater_state_str = "...";          // displays state on GUI/HTML
-      // int heater_state_ctl = 1;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
-      // String heater_state_ctl_str = "...";      // for button text
-    // ################### LED
-      // enum LEDState {
-      //   LED_OFF = 0,
-      //   LED_ON = 1,
-      //   LED_18_6 = 2,
-      //   LED_12_12 = 3,
-      //   LED_ARRAY = 4
-      // };
-      // int led_state = 0;                      // 0=OFF, 1=ON
-      // String led_state_str = "...";
-      // int led_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
-      // String led_state_ctl_str = "...";
-    // ################### Ventilator
-      // int ventilator_state = 0;                      // 0=OFF, 1=ON
-      // String ventilator_state_str = "...";
-      // int ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
-      // String ventilator_state_ctl_str = "...";
-
+  // ################### state setpoints
+    const int OFF   = 0;
+    const int ON    = 1;
+    const int AUTO  = 2;
+    const int LED_186   = 2;
+    const int LED_1212  = 3;
+    const int LED_ARRAY = 4;
 // ################### Functions
   // ######################## String function Switches/States
     String state_ctl_txt(int ctl){
       String _txt = "";
       switch (ctl) {
-        case 0:
+        case OFF:
           _txt = "Manual OFF";
           break;
-        case 1:
+        case ON:
           _txt = "Manual ON";
           break;
-        case 2:
+        case AUTO:
           _txt = "AUTOMATIC";
           break;
       }
@@ -131,19 +105,19 @@
     String state_ctl_led_txt(int ctl){
       String _txt = "";
       switch (ctl) {
-        case 0:
+        case OFF:
           _txt = "Manual OFF";
           break;
-        case 1:
+        case ON:
           _txt = "Manual ON";
           break;
-        case 2:
+        case LED_186:
           _txt = "18/6 (4-22)";
           break;
-        case 3:
+        case LED_1212:
           _txt = "12/12 (8-20)";
           break;
-        case 4:
+        case LED_ARRAY:
           _txt = "ARRAY";
           break;      
       }
@@ -267,6 +241,13 @@
       }
       return "not_valid";
     }
+  // ######################## Server ON
+    void handleButton(const char* url, int& state_var, int new_state) {
+        server.on(url, HTTP_GET, [&, new_state](AsyncWebServerRequest *request){  
+            state_var = new_state;
+            request->send(SPIFFS, "/index.html", String(), false, processor);
+        });
+    }
 
 void setup(){
   // ################### Initial values
@@ -313,122 +294,155 @@ void setup(){
         });
     
       // ######################## Heater State Button (Called when <IP>/b1_off browsed)
-        server.on("/b1_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-          heater.state_ctl = 0;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        });
-        server.on("/b1_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-          heater.state_ctl = 1;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        }); 
-        server.on("/b1_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          heater.state_ctl = 2;
-        });
+        handleButton("/b1_off", heater.state_ctl, OFF);
+        handleButton("/b1_on", heater.state_ctl, ON);
+        handleButton("/b1_auto", heater.state_ctl, AUTO);
+
+        // server.on("/b1_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   heater.state_ctl = 0;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // });
+        // server.on("/b1_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   heater.state_ctl = 1;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // }); 
+        // server.on("/b1_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   heater.state_ctl = 2;
+        // });
 
       // ######################## Pipe ventilator state Button
-        server.on("/b21_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-          pipevent.state_ctl = 0;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        });
-        server.on("/b21_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-          pipevent.state_ctl = 1;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        });
-        server.on("/b21_on_intervall", HTTP_GET, [](AsyncWebServerRequest *request){  
-          pipevent.state_ctl = 2;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        });
+        handleButton("/b21_off", pipevent.state_ctl, OFF);
+        handleButton("/b21_on", pipevent.state_ctl, ON);
+        handleButton("/b21_on_intervall", pipevent.state_ctl, AUTO);
+
+        // server.on("/b21_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   pipevent.state_ctl = 0;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // });
+        // server.on("/b21_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   pipevent.state_ctl = 1;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // });
+        // server.on("/b21_on_intervall", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   pipevent.state_ctl = 2;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // });
         
       // ######################## Pipe ventilator duty cycle Button
-        server.on("/b22_15", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_dutycycle_ctl = 15;
-        });  
-        server.on("/b22_30", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_dutycycle_ctl = 30;
-        });  
-        server.on("/b22_50", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_dutycycle_ctl = 50;
-        });  
-        server.on("/b22_80", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_dutycycle_ctl = 80;
-        });  
+        handleButton("/b22_15", pipevent_dutycycle_ctl, 15);
+        handleButton("/b22_30", pipevent_dutycycle_ctl, 30);
+        handleButton("/b22_50", pipevent_dutycycle_ctl, 50);
+        handleButton("/b22_80", pipevent_dutycycle_ctl, 80);
+
+        // server.on("/b22_15", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_dutycycle_ctl = 15;
+        // });  
+        // server.on("/b22_30", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_dutycycle_ctl = 30;
+        // });  
+        // server.on("/b22_50", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_dutycycle_ctl = 50;
+        // });  
+        // server.on("/b22_80", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_dutycycle_ctl = 80;
+        // });  
               
       // ######################## LED state Button
-        server.on("/b3_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-          led.state_ctl = 0;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        });
-        server.on("/b3_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-          led.state_ctl = 1;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        }); 
-        server.on("/b3_1806", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          led.state_ctl = 2;
-        });
-        server.on("/b3_1212", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          led.state_ctl = 3;
-        });
-          server.on("/b3_array", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          led.state_ctl = 4;
-        });
+        handleButton("/b3_off", led.state_ctl, OFF);
+        handleButton("/b3_on", led.state_ctl, ON);
+        handleButton("/b3_1806", led.state_ctl, LED_186);
+        handleButton("/b3_1212", led.state_ctl, LED_1212);
+        handleButton("/b3_array", led.state_ctl, LED_ARRAY);
+
+        // server.on("/b3_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   led.state_ctl = 0;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // });
+        // server.on("/b3_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   led.state_ctl = 1;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // }); 
+        // server.on("/b3_1806", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   led.state_ctl = 2;
+        // });
+        // server.on("/b3_1212", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   led.state_ctl = 3;
+        // });
+        //   server.on("/b3_array", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   led.state_ctl = 4;
+        // });
       
       // ######################## ventilator state Button
-        server.on("/b4_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-          ventilator.state_ctl = 0;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        });
-        server.on("/b4_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-          ventilator.state_ctl = 1;
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-        }); 
-        server.on("/b4_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          ventilator.state_ctl = 2;
-        });
+        handleButton("/b4_off", ventilator.state_ctl, OFF);
+        handleButton("/b4_on", ventilator.state_ctl, ON);
+        handleButton("/b4_auto", ventilator.state_ctl, AUTO);
+
+        // server.on("/b4_off", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   ventilator.state_ctl = 0;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // });
+        // server.on("/b4_on", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   ventilator.state_ctl = 1;
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        // }); 
+        // server.on("/b4_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   ventilator.state_ctl = 2;
+        // });
       
       // ######################## Pipe ventilator ON-Zeit Button
-        server.on("/b5_2", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_minute_ON = 2;
-        });  
-        server.on("/b5_4", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_minute_ON = 4;
-        });  
-        server.on("/b5_6", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_minute_ON = 6;
-        });  
-        server.on("/b5_8", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_minute_ON = 8;
-        });  
+        handleButton("/b5_2", pipevent_minute_ON, 2);
+        handleButton("/b5_4", pipevent_minute_ON, 4);
+        handleButton("/b5_6", pipevent_minute_ON, 6);
+        handleButton("/b5_8", pipevent_minute_ON, 8);
+
+        // server.on("/b5_2", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_minute_ON = 2;
+        // });  
+        // server.on("/b5_4", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_minute_ON = 4;
+        // });  
+        // server.on("/b5_6", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_minute_ON = 6;
+        // });  
+        // server.on("/b5_8", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_minute_ON = 8;
+        // });  
 
       // ######################## Pipe ventilator OFF-Zeit Button
-        server.on("/b6_0", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_minute_OFF = 0;
-        });  
-        server.on("/b6_2", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_minute_OFF = 2;
-        });  
-        server.on("/b6_4", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_minute_OFF = 4;
-        });  
-        server.on("/b6_6", HTTP_GET, [](AsyncWebServerRequest *request){  
-          request->send(SPIFFS, "/index.html", String(), false, processor);
-          pipevent_minute_OFF = 6;
-        }); 
+        handleButton("/b6_0", pipevent_minute_OFF, 0);
+        handleButton("/b6_2", pipevent_minute_OFF, 2);
+        handleButton("/b6_4", pipevent_minute_OFF, 4);
+        handleButton("/b6_6", pipevent_minute_OFF, 6);
+
+        // server.on("/b6_0", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_minute_OFF = 0;
+        // });  
+        // server.on("/b6_2", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_minute_OFF = 2;
+        // });  
+        // server.on("/b6_4", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_minute_OFF = 4;
+        // });  
+        // server.on("/b6_6", HTTP_GET, [](AsyncWebServerRequest *request){  
+        //   request->send(SPIFFS, "/index.html", String(), false, processor);
+        //   pipevent_minute_OFF = 6;
+        // }); 
 
       // ################### Start server
         server.begin();
