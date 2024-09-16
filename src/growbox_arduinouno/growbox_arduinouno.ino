@@ -604,53 +604,53 @@ void loop(void){
     }
 
   // ################### 2000 ms
-  if ((millisec - cycle_2000ms_dt > cycle_2000ms)) {
-    cycle_2000ms_dt = millisec;
-  
-    if (debug_timers == true) {
-      Serial.println("<START> 2000 ms");
-    }
-
-    // ############################################   READ temperature sensors
-      tempsensors.requestTemperatures();
-      TS01 = tempsensors.getTempCByIndex(0);
-      TS02 = tempsensors.getTempCByIndex(1);
-      TS03 = tempsensors.getTempCByIndex(2);
-
-      if (debug_temp_DS18B20 == true) {
-        Serial.println("Temperaturen [°C] der DS18B20-Sensoren");
-        PRINT_VARIABLE(TS01);    
-        PRINT_VARIABLE(TS02);    
-        PRINT_VARIABLE(TS03);    
-      }
-
-    // ############################################   READ soil moisture sensor
-      int debocap_value = analogRead(debocap_pin);
+    if ((millisec - cycle_2000ms_dt > cycle_2000ms)) {
+      cycle_2000ms_dt = millisec;
     
-      // Konvertiere den analogen Wert in eine Bodenfeuchte-Prozentzahl
-      debocap_percentage = map(debocap_value, debocap_water, debocap_dry_air, 100, 0);
-
-      if (debug_debocap == true) {
-        Serial.println("Feuchtigkeit [%] und Spannung [V] des DEBOCAP"); 
-        PRINT_VARIABLE(debocap_percentage);
-        PRINT_VARIABLE(debocap_value);
+      if (debug_timers == true) {
+        Serial.println("<START> 2000 ms");
       }
 
-    // ############################################   READ humidity sensor
-      FS01_LF_int = dht1.readHumidity();        
-      FS01_T_int  = dht1.readTemperature(); 
-          
-      FS02_LF_int = dht2.readHumidity();        
-      FS02_T_int  = dht2.readTemperature();  
+      // ############################################   READ temperature sensors
+        tempsensors.requestTemperatures();
+        TS01 = tempsensors.getTempCByIndex(0);
+        TS02 = tempsensors.getTempCByIndex(1);
+        TS03 = tempsensors.getTempCByIndex(2);
 
-      if (debug_DHT22 == true) {
-        Serial.println("Relative Luftfeuchtigkeit [%] und Temperatur [°C] des DHT22");
-        PRINT_VARIABLE(FS01_LF_int);
-        PRINT_VARIABLE(FS01_T_int);
-        PRINT_VARIABLE(FS02_LF_int);
-        PRINT_VARIABLE(FS02_T_int);  
-      }        
+        if (debug_temp_DS18B20 == true) {
+          Serial.println("Temperaturen [°C] der DS18B20-Sensoren");
+          PRINT_VARIABLE(TS01);    
+          PRINT_VARIABLE(TS02);    
+          PRINT_VARIABLE(TS03);    
+        }
 
-  }
+      // ############################################   READ soil moisture sensor
+        int debocap_value = analogRead(debocap_pin);
+      
+        // Konvertiere den analogen Wert in eine Bodenfeuchte-Prozentzahl
+        debocap_percentage = map(debocap_value, debocap_water, debocap_dry_air, 100, 0);
+
+        if (debug_debocap == true) {
+          Serial.println("Feuchtigkeit [%] und Spannung [V] des DEBOCAP"); 
+          PRINT_VARIABLE(debocap_percentage);
+          PRINT_VARIABLE(debocap_value);
+        }
+
+      // ############################################   READ humidity sensor
+        FS01_LF_int = dht1.readHumidity();        
+        FS01_T_int  = dht1.readTemperature(); 
+            
+        FS02_LF_int = dht2.readHumidity();        
+        FS02_T_int  = dht2.readTemperature();  
+
+        if (debug_DHT22 == true) {
+          Serial.println("Relative Luftfeuchtigkeit [%] und Temperatur [°C] des DHT22");
+          PRINT_VARIABLE(FS01_LF_int);
+          PRINT_VARIABLE(FS01_T_int);
+          PRINT_VARIABLE(FS02_LF_int);
+          PRINT_VARIABLE(FS02_T_int);  
+        }        
+
+    }
   
 }

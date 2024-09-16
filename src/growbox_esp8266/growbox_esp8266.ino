@@ -5,10 +5,10 @@
 */
 
 // ################### Libray
-  #include <ESP8266WiFi.h>        // https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266WiFi/src/ESP8266WiFi.h
+  // #include <ESP8266WiFi.h>        // https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266WiFi/src/ESP8266WiFi.h
   #include <ESPAsyncTCP.h>        // https://github.com/me-no-dev/ESPAsyncTCP
   #include <ESPAsyncWebServer.h>  // https://github.com/me-no-dev/ESPAsyncWebServer
-  #include <FS.h>                 // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/FS.h
+  // #include <FS.h>                 // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/FS.h
   #include <SoftwareSerial.h>
 
 // ################### Variables
@@ -28,14 +28,9 @@
       char send_char_array[50];
       int snd_active = 0; // > 5 = SEND aktivieren 
       const int snd_counts_to_active = 20; 
-  // ################### pipe ventilator
+  // ################### pipe ventilator dutycycle
     float dutycycle = 0.0;
     int dutycycle_int = 0;
-
-    int pipevent_state = 0;                   // 0=OFF, 1=ON
-    String pipevent_state_str = "...";
-    int pipevent_state_ctl = 2;               // 0=OFF, 1=ON, 2=Intervall
-    String pipevent_state_ctl_str = "...";
     int pipevent_dutycycle_ctl = 50;          // Duty cycle control (%)
 
     int pipevent_minute_ON     = 4;
@@ -75,22 +70,44 @@
     const char* ssid = "Pumuckel";            // wifi network
     const char* password = "Stiller_83";      // wifi network
     AsyncWebServer server(80);                // Create AsyncWebServer object on port 8888
-
-  // ################### Heater
-    int heater_state = 0;                     // 0=OFF, 1=ON
-    String heater_state_str = "...";
-    int heater_state_ctl = 1;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
-    String heater_state_ctl_str = "...";
-  // ################### LED
-    int led_state = 0;                      // 0=OFF, 1=ON
-    String led_state_str = "...";
-    int led_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
-    String led_state_ctl_str = "...";
-  // ################### Ventilator
-    int ventilator_state = 0;                      // 0=OFF, 1=ON
-    String ventilator_state_str = "...";
-    int ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
-    String ventilator_state_ctl_str = "...";
+  // ################### Actuators
+    struct state_ctl {  // class for actuators to control and visualize states
+      int state             = 0;         // 0=OFF, 1=ON, etc.
+      String state_str      = "...";     // displays state on GUI/HTML 
+      int state_ctl         = 1;         // 0=Manual ON, 1=Manual OFF, etc.
+      String state_ctl_str  = "...";     // for button text
+    };
+    state_ctl heater;     // create instance for heater
+    state_ctl led; 
+    state_ctl ventilator; 
+    state_ctl pipevent;
+    // ################### pipe ventilator
+      // int pipevent_state = 0;                   // 0=OFF, 1=ON
+      // String pipevent_state_str = "...";
+      // int pipevent_state_ctl = 2;               // 0=OFF, 1=ON, 2=Intervall
+      // String pipevent_state_ctl_str = "...";
+    // ################### Heater
+      // int heater_state = 0;                     // 0=OFF, 1=ON
+      // String heater_state_str = "...";          // displays state on GUI/HTML
+      // int heater_state_ctl = 1;                 // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+      // String heater_state_ctl_str = "...";      // for button text
+    // ################### LED
+      // enum LEDState {
+      //   LED_OFF = 0,
+      //   LED_ON = 1,
+      //   LED_18_6 = 2,
+      //   LED_12_12 = 3,
+      //   LED_ARRAY = 4
+      // };
+      // int led_state = 0;                      // 0=OFF, 1=ON
+      // String led_state_str = "...";
+      // int led_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+      // String led_state_ctl_str = "...";
+    // ################### Ventilator
+      // int ventilator_state = 0;                      // 0=OFF, 1=ON
+      // String ventilator_state_str = "...";
+      // int ventilator_state_ctl = 2;                  // 0=Manual ON, 1=Manual OFF, 2=AUTOMATIC
+      // String ventilator_state_ctl_str = "...";
 
 // ################### Functions
   // ######################## String function Switches/States
@@ -189,28 +206,28 @@
     String processor(const String& var){
 
       if(var == "heater_state_str"){
-        return heater_state_str;
+        return heater.state_str;
       }
       if(var == "heater_state_ctl_str"){
-        return heater_state_ctl_str;
+        return heater.state_ctl_str;
       }
       if(var == "pipevent_state_str"){
-        return pipevent_state_str;
+        return pipevent.state_str;
       }
       if(var == "pipevent_state_ctl_str"){
-        return pipevent_state_ctl_str;
+        return pipevent.state_ctl_str;
       }
       if(var == "led_state_str"){
-        return led_state_str;
+        return led.state_str;
       }
       if(var == "led_state_ctl_str"){
-        return led_state_ctl_str;
+        return led.state_ctl_str;
       }
       if(var == "ventilator_state_str"){
-        return ventilator_state_str;
+        return ventilator.state_str;
       }
       if(var == "ventilator_state_ctl_str"){
-        return ventilator_state_ctl_str;
+        return ventilator.state_ctl_str;
       }      
       else if (var == "TS01"){
         return getTS01();
@@ -251,14 +268,12 @@
       return "not_valid";
     }
 
-
-
 void setup(){
   // ################### Initial values
-    heater_state_ctl        = 0;    // OFF
-    pipevent_state_ctl      = 1;    // ON    
-    led_state_ctl           = 2;    // 18/6
-    ventilator_state_ctl    = 1;    // ON
+    heater.state_ctl        = 0;    // OFF
+    pipevent.state_ctl      = 1;    // ON    
+    led.state_ctl           = 2;    // 18/6
+    ventilator.state_ctl    = 1;    // ON
     pipevent_dutycycle_ctl  = 50;   // 50 %
   // ################### Debug Monitor
     Serial.begin(9600);   // for serial output in window / debugging
@@ -299,29 +314,29 @@ void setup(){
     
       // ######################## Heater State Button (Called when <IP>/b1_off browsed)
         server.on("/b1_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-          heater_state_ctl = 0;
+          heater.state_ctl = 0;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         });
         server.on("/b1_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-          heater_state_ctl = 1;
+          heater.state_ctl = 1;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         }); 
         server.on("/b1_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
           request->send(SPIFFS, "/index.html", String(), false, processor);
-          heater_state_ctl = 2;
+          heater.state_ctl = 2;
         });
 
       // ######################## Pipe ventilator state Button
         server.on("/b21_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-          pipevent_state_ctl = 0;
+          pipevent.state_ctl = 0;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         });
         server.on("/b21_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-          pipevent_state_ctl = 1;
+          pipevent.state_ctl = 1;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         });
         server.on("/b21_on_intervall", HTTP_GET, [](AsyncWebServerRequest *request){  
-          pipevent_state_ctl = 2;
+          pipevent.state_ctl = 2;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         });
         
@@ -345,38 +360,38 @@ void setup(){
               
       // ######################## LED state Button
         server.on("/b3_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-          led_state_ctl = 0;
+          led.state_ctl = 0;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         });
         server.on("/b3_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-          led_state_ctl = 1;
+          led.state_ctl = 1;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         }); 
         server.on("/b3_1806", HTTP_GET, [](AsyncWebServerRequest *request){  
           request->send(SPIFFS, "/index.html", String(), false, processor);
-          led_state_ctl = 2;
+          led.state_ctl = 2;
         });
         server.on("/b3_1212", HTTP_GET, [](AsyncWebServerRequest *request){  
           request->send(SPIFFS, "/index.html", String(), false, processor);
-          led_state_ctl = 3;
+          led.state_ctl = 3;
         });
           server.on("/b3_array", HTTP_GET, [](AsyncWebServerRequest *request){  
           request->send(SPIFFS, "/index.html", String(), false, processor);
-          led_state_ctl = 4;
+          led.state_ctl = 4;
         });
       
       // ######################## ventilator state Button
         server.on("/b4_off", HTTP_GET, [](AsyncWebServerRequest *request){  
-          ventilator_state_ctl = 0;
+          ventilator.state_ctl = 0;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         });
         server.on("/b4_on", HTTP_GET, [](AsyncWebServerRequest *request){  
-          ventilator_state_ctl = 1;
+          ventilator.state_ctl = 1;
           request->send(SPIFFS, "/index.html", String(), false, processor);
         }); 
         server.on("/b4_auto", HTTP_GET, [](AsyncWebServerRequest *request){  
           request->send(SPIFFS, "/index.html", String(), false, processor);
-          ventilator_state_ctl = 2;
+          ventilator.state_ctl = 2;
         });
       
       // ######################## Pipe ventilator ON-Zeit Button
@@ -442,7 +457,7 @@ void loop(){
             PRINT_VARIABLE(incoming_char_array);
           }
           // decode data from char-array
-          sscanf(incoming_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", &TS01_int, &TS02_int, &TS03_int, &dutycycle_int, &heater_state, &pipevent_state, &led_state, &ventilator_state, &word_hour, &word_minute, &debocap_percentage, &msg_req_feedback, &FS01_LF, &FS02_LF);
+          sscanf(incoming_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", &TS01_int, &TS02_int, &TS03_int, &dutycycle_int, &heater.state, &pipevent.state, &led.state, &ventilator.state, &word_hour, &word_minute, &debocap_percentage, &msg_req_feedback, &FS01_LF, &FS02_LF);
         }             
     }
   
@@ -461,20 +476,20 @@ void loop(){
         dutycycle = float(dutycycle_int)/10; 
 
       // ################### Buttons 
-        heater_state_ctl_str      = state_ctl_txt(heater_state_ctl);
-        led_state_ctl_str         = state_ctl_led_txt(led_state_ctl);
-        ventilator_state_ctl_str  = state_ctl_txt(ventilator_state_ctl);
-        pipevent_state_ctl_str    = state_ctl_txt(pipevent_state_ctl);
+        heater.state_ctl_str      = state_ctl_txt(heater.state_ctl);
+        led.state_ctl_str         = state_ctl_led_txt(led.state_ctl);
+        ventilator.state_ctl_str  = state_ctl_txt(ventilator.state_ctl);
+        pipevent.state_ctl_str    = state_ctl_txt(pipevent.state_ctl);
         
       // ################### States from Arduino 
-        heater_state_str      = state_txt(heater_state);
-        pipevent_state_str    = state_txt(pipevent_state);
-        led_state_str         = state_txt(led_state);
-        ventilator_state_str  = state_txt(ventilator_state);   
+        heater.state_str      = state_txt(heater.state);
+        pipevent.state_str    = state_txt(pipevent.state);
+        led.state_str         = state_txt(led.state);
+        ventilator.state_str  = state_txt(ventilator.state);   
 
       // ################### SEND
         if (snd_active >= snd_counts_to_active) {
-          sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u", heater_state_ctl, pipevent_state_ctl, led_state_ctl, ventilator_state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
+          sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u", heater.state_ctl, pipevent.state_ctl, led.state_ctl, ventilator.state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
           SoftwareSerial_ESP8266.println(send_char_array);
           if (debug_softwareserial == true) {
             PRINT_VARIABLE(send_char_array);
