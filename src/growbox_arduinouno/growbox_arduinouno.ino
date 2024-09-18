@@ -29,18 +29,19 @@
         #define DHTPIN2 7          // Connected on Pin D7 on Arduino UNO      
         #define DHTTYPE DHT22      // Es handelt sich um den DHT22 Sensor
 
-        const bool debug_DHT22 = false;
-
         DHT dht1(DHTPIN1, DHTTYPE);               // Der Sensor wird mit „dth1“ angesprochen
         DHT dht2(DHTPIN2, DHTTYPE);               // Der Sensor wird mit „dth2“ angesprochen
 
-        struct dht22 {
-          int temp = 0;
-          int hum = 0;
+        class DHT22_th {
+          public:
+            int temp = 0;
+            int hum = 0;
+            static bool debug;
         };
 
-        dht22 dht22_1;  // build instance of class
-        dht22 dht22_2;
+        bool DHT22_th::debug = false;   // init static bool for all instances
+        DHT22_th dht22_1;               // build instance of class
+        DHT22_th dht22_2;
   
       // ################### SHELLY DS18B20 (Temperature, OneWire)
         #define ONE_WIRE_BUS 8                    // Data wire on Pin D8 at Arduino UNO
@@ -50,10 +51,20 @@
         class DS18B20 {
         public:
             float t_float = 0.0;
-            int t_int = 0;      
+            int t_int = 0;  
+
+            /**
+            * @brief Static debug variable that applies to all instances.
+            * If `true`, debug outputs are activated.
+            */
             static bool debug;    // Static debug variable that applies to all instances
-            // Static method for setting the debug variable
-            static void setDebug(bool debugvalue) {
+  
+            /**
+            * @brief Static method for setting the debug variable.
+            * 
+            * @param debugvalue Value `true` to activate debugging or `false` to deactivate it.
+            */
+            static void setDebug(bool debugvalue) { // Static method for setting the debug variable
                 debug = debugvalue;
             }
         };
@@ -260,9 +271,6 @@
         ; // wait for serial port to connect
       }
       delay(1000);
-
-      DS18B20::setDebug(true);
-
     // ################### SoftwareSerial
       pinMode(rxPin, INPUT);
       pinMode(txPin, OUTPUT);
@@ -279,11 +287,12 @@
       digitalWrite(ventilator_pin, LOW);
 
 
-    // ################### Temperature sensors
+    // ################### DHT temp.
       tempsensors.begin();    // Temperatursensoren starten         
       dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
       dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
-    
+    // ################### DS18B20 temp.
+      // DS18B20::setDebug(true);
     // ################### RTC
       if (RTC_use == true) {
         if (RTC_adjust == true) {
@@ -681,7 +690,7 @@
           dht22_1.hum = dht2.readHumidity();        
           dht22_2.temp  = dht2.readTemperature();  
 
-          if (debug_DHT22 == true) {
+          if (DHT22_th::debug == true) {
             Serial.println("Relative Luftfeuchtigkeit [%] und Temperatur [°C] des DHT22");
             PRINT_VARIABLE(dht22_1.hum);
             PRINT_VARIABLE(dht22_1.temp);
