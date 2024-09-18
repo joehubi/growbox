@@ -76,15 +76,17 @@
         DS18B20 DS18B20_temp3; 
 
       // ################### Soil Humuditiy sensor
-        const int debocap_pin = A0;     // Data wire on Pin A0 or D14 at Arduino UNO
-        int debocap_percentage = 0;
-          
-        const bool debug_debocap = false;
-
-        const int debocap_dry_air = 635;        // 3,3 V und lange Leitung
-        //const int debocap_normal_soil = 429;  // 3,3 V und kurze Leitung
-        //const int debocap_wet_soil = 255;     // 3,3 V und kurze Leitung
-        const int debocap_water = 258;          // 3,3 V und lange Leitung
+        
+        class DEBOCAP {
+          public:
+            bool debug;
+            int pin;
+            int p100;   // Integer value according to 100 % humidity
+            int p0;     // Integer value according to 0 % humidity
+            int soil_humidity_p = 0;  // Value for soil humidity 0..100 %
+        };
+        
+        DEBOCAP debo;
 
     // ################### Electrical Socket's with timing
 
@@ -285,12 +287,19 @@
       digitalWrite(pipevent_pin, LOW);
       digitalWrite(led_pin, LOW);
       digitalWrite(ventilator_pin, LOW);
-
+    // ################### DEBOCAP
+      debo.debug  = false;
+      debo.pin    = A0;
+      debo.p100   = 258;  // tested for water (3,3 V with short connection)
+      debo.p0     = 635;  // tested for dry air (3,3 V with short connection)
+      // debo.p0     = 429;  // tested for normal soil (3,3 V with short connection)
+      // debo.p0     = 255;  // tested for wet soil (3,3 V with short connection)
 
     // ################### DHT temp.
       tempsensors.begin();    // Temperatursensoren starten         
       dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
       dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
+    
     // ################### DS18B20 temp.
       // DS18B20::setDebug(true);
     // ################### RTC
@@ -512,7 +521,7 @@
           sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", \
           DS18B20_temp1.t_int, DS18B20_temp2.t_int, DS18B20_temp3.t_int, \
           duty_cycle_int, heater.state, pipevent.state, led.state, ventilator.state, \
-          _hour,_minute, debocap_percentage, snd_ctn, dht22_1.hum, dht22_2.hum);
+          _hour,_minute, debo.soil_humidity_p, snd_ctn, dht22_1.hum, dht22_2.hum);
           SoftwareSerial_Arduino.println(send_char_array);
           if (debug_softwareserial == true) {
             PRINT_VARIABLE(send_char_array);
@@ -672,14 +681,14 @@
           }
 
         // ############################################   READ soil moisture sensor
-          int debocap_value = analogRead(debocap_pin);
+          int debocap_value = analogRead(debo.pin);
         
           // Konvertiere den analogen Wert in eine Bodenfeuchte-Prozentzahl
-          debocap_percentage = map(debocap_value, debocap_water, debocap_dry_air, 100, 0);
+          debo.soil_humidity_p = map(debocap_value, debo.p100, debo.p0, 100, 0);
 
-          if (debug_debocap == true) {
+          if (debo.debug == true) {
             Serial.println("Feuchtigkeit [%] und Spannung [V] des DEBOCAP"); 
-            PRINT_VARIABLE(debocap_percentage);
+            PRINT_VARIABLE(debo.soil_humidity_p);
             PRINT_VARIABLE(debocap_value);
           }
 
