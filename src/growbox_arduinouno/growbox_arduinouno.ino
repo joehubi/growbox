@@ -95,12 +95,12 @@
         int state_ctl = 0;       // 0 = OFF, 1 = ON, etc.
       };
 
-      const int _OFF = 0;
-      const int _ON = 1;
-      const int AUTO = 2;
+      const int _OFF  = 0;
+      const int _ON   = 1;
+      const int AUTO  = 2;
 
-      const int LED_186 = 2;      // 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr)
-      const int LED_1212 = 3;     // 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr)
+      const int LED_186   = 2;      // 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr)
+      const int LED_1212  = 3;     // 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr)
       const int LED_ARRAY = 4;    // Entsprechend Array 
 
       // ################### Pipe ventilator (socket switch + PWM signal)
@@ -182,6 +182,16 @@
       // ################### SEND
         char send_char_array[50]; // Puffer für die Datenübertragung (max. Länge der Nachricht festlegen)
         int snd_ctn = 0;
+    // ################### Time
+      struct time_ {
+        int minute      = 0;
+        int hour        = 0;
+        int second      = 0;
+        int hourminute  = 0;
+      };
+
+      time_ t;    // t calculates and represents the actual timestamp values (second, minute, etc.)
+      
     // ################### RTC
       /*  Die RTC muss über die Pin's A4 und A5 verbunden werden (siehe Arduino UNO Pinout und Dokumentation https://github.com/StephanFink/RTClib/, UNO is ATmega328).
           Die Kommunikation ist I2C. 
@@ -195,16 +205,12 @@
       const bool RTC_use         = true;      // 0 = don't use RTC (no init will be done), 1 = use RTC
       const bool RTC_adjust      = false;     // adjust time on RTC chip
 
-      String timestamp  = "dd.mm.yyyy HH:MM:ss";
-      int _minute      = 0;
-      int _hour        = 0;
-      int _second      = 0;
-      int _hourminute  = 0;
+
 
       struct RTC_s {
           int hour;
           int minute;
-          int hourminute;
+          int hourminute; // minute + 60 * hour (minutes of the day)  
       };
 
     // ################### Timer for timed loops
@@ -215,21 +221,13 @@
         public:
             int time = 1000;        // default 1000 ms
             unsigned long dt = 0;   // for timer calculation
-
-            // default
-            Cycle() {}
-            // constructor with parameters
-            Cycle(int time_in_ms) {
+            Cycle() {}              // default
+            Cycle(int time_in_ms) { // constructor with parameters
                 time = time_in_ms;
             }
-            // set time value
-            void set_timer(int time_in_ms) {
+            void set_timer(int time_in_ms) { // set time value
                 time = time_in_ms;
             }
-            // // get actual time value
-            // int get_time() const {
-            //     return time;
-            // }
       };
 
       Cycle _500ms(500);    // build instance for 500 ms cycle-timer
@@ -314,20 +312,20 @@
         else {
           Serial.println("RTC initialized");
           RTC_s rtc_values = getRTC();    // get once at startup
-          _minute     = rtc_values.minute;
-          _hour       = rtc_values.hour;
-          _hourminute = rtc_values.hourminute;
+          t.minute     = rtc_values.minute;
+          t.hour       = rtc_values.hour;
+          t.hourminute = rtc_values.hourminute;
         }
       }
       else {
         Serial.println("RTC time set manually");
-        _minute     = 0;     // time can be set here manually
-        _hour       = 12;   // time can be set here manually
-        _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)       
+        t.minute     = 0;     // time can be set here manually
+        t.hour       = 12;   // time can be set here manually
+        t.hourminute = t.minute + 60*t.hour; // calc hourm (minutes of the day)       
       }  
 
       delay(50);
-      Serial.println("RTC-time: HH:MM - " + String(_hour) + ":" + String(_minute) +" , Hour-Minute - " + String(_hourminute));
+      Serial.println("RTC-time: HH:MM - " + String(t.hour) + ":" + String(t.minute) +" , Hour-Minute - " + String(t.hourminute));
 
     // ################### Interrupt-Output (PWM pins)
       // ATmega328P
@@ -403,40 +401,40 @@
         }
 
         // ################### Calculate times with second-timer
-          _second++;
+          t.second++;
         
-          if (_second >= 60) {
-            _second = 0;
-            _minute++;
-            if (_minute >= 60) {
-              _minute = 0;
-              _hour++;
-              if (_hour >= 24) {
-                _hour = 0;
+          if (t.second >= 60) {
+            t.second = 0;
+            t.minute++;
+            if (t.minute >= 60) {
+              t.minute = 0;
+              t.hour++;
+              if (t.hour >= 24) {
+                t.hour = 0;
                 
                 if (RTC_use == true) {
                   RTC_s rtc_values  = getRTC(); // Aktuelle Uhrzeit einmal am Tag von der RTC holen
-                  _minute           = rtc_values.minute;
-                  _hour             = rtc_values.hour;
-                  _hourminute       = rtc_values.hourminute;
+                  t.minute           = rtc_values.minute;
+                  t.hour             = rtc_values.hour;
+                  t.hourminute       = rtc_values.hourminute;
                 }
               }
             }
-            _hourminute = _minute + 60*_hour; // calc hourm (minutes of the day)
+            t.hourminute = t.minute + 60*t.hour; // calc hourm (minutes of the day)
           }
           
           if (debug_second_timer == true) {
             Serial.println("Zeiten"); 
-            Serial.println("Sekunde: "+String(_second));
-            Serial.println("Minute: "+String(_minute));
-            Serial.println("Stunde: "+String(_hour));
-            Serial.println("Stundenminute: "+String(_hourminute));
+            Serial.println("Sekunde: "+String(t.second));
+            Serial.println("Minute: "+String(t.minute));
+            Serial.println("Stunde: "+String(t.hour));
+            Serial.println("Stundenminute: "+String(t.hourminute));
           }
 
         // ################### Trigger für Statuswechsel (LED / Ventilator) updaten)
-          vent_minute     = _minute;
-          pipevent_minute = _minute;
-          led_minute      = _minute;
+          vent_minute     = t.minute;
+          pipevent_minute = t.minute;
+          led_minute      = t.minute;
         
         // ################### pipe ventilator
           // ################### control
@@ -521,7 +519,7 @@
           sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", \
           DS18B20_temp1.t_int, DS18B20_temp2.t_int, DS18B20_temp3.t_int, \
           duty_cycle_int, heater.state, pipevent.state, led.state, ventilator.state, \
-          _hour,_minute, debo.soil_humidity_p, snd_ctn, dht22_1.hum, dht22_2.hum);
+          t.hour,t.minute, debo.soil_humidity_p, snd_ctn, dht22_1.hum, dht22_2.hum);
           SoftwareSerial_Arduino.println(send_char_array);
           if (debug_softwareserial == true) {
             PRINT_VARIABLE(send_char_array);
@@ -572,14 +570,14 @@
 
                 // Change ventilator state (on/off) according to actual minutes and state-array
                 for (word i = 0; (i < sizeof(vent_min_array) / sizeof(vent_min_array[0]) && i < 1000) ; i++){
-                  if (_minute == vent_min_array[i]) {
+                  if (t.minute == vent_min_array[i]) {
                     ventilator.state = vent_state_array[i];
                     if (debug_array == true) {
                       //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
                     }
                     i = 1000; //exit for-loop
                   }
-                  else if (_minute < vent_min_array[i]) {
+                  else if (t.minute < vent_min_array[i]) {
                     ventilator.state = vent_state_array[i-1];
                     if (debug_array == true) {
                       //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
@@ -601,7 +599,7 @@
               led.state = 1;
               break;
             case LED_186: // 18/6 Belichtungszyklus (04:00 Uhr bis 22:00 Uhr)
-              if ((_hourminute >= 240) && (_hourminute <= 1320)) {
+              if ((t.hourminute >= 240) && (t.hourminute <= 1320)) {
                 led.state = 1;
               }
               else {
@@ -609,7 +607,7 @@
               }
               break;
             case LED_1212: // 12/12 Belichtungszyklus (08:00 Uhr bis 20:00 Uhr)
-              if ((_hourminute >= 480) && (_hourminute <= 1200)) {
+              if ((t.hourminute >= 480) && (t.hourminute <= 1200)) {
                 led.state = 1;
               }
               else {
@@ -627,14 +625,14 @@
 
                 // Change led state (on/off) according to actual hour-minutes and state-array
                 for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
-                  if (_hourminute == led_hourm_array[i]) {
+                  if (t.hourminute == led_hourm_array[i]) {
                     led.state = led_state_array[i];
                     if (debug_array == true) {
                       //Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(_hourminute));
                     }
                     i = 1000; //exit for-loop
                   }
-                  else if (_hourminute < led_hourm_array[i]) {
+                  else if (t.hourminute < led_hourm_array[i]) {
                     led.state = led_state_array[i-1];
                     if (debug_array == true) {
                       //Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(_hourminute));
