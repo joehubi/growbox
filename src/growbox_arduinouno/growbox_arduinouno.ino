@@ -207,13 +207,14 @@
       RTC_config _RTC;
 
     // ################### Timer for timed loops
-      const bool debug_timers = false;
+      //const bool debug_timers = false;
       const bool debug_second_timer = false;
 
       class Cycle {
         public:
             int time = 1000;        // default 1000 ms
             unsigned long dt = 0;   // for timer calculation
+            bool debug = false;
             Cycle() {}              // default
             Cycle(int time_in_ms) { // constructor with parameters
                 time = time_in_ms;
@@ -362,7 +363,7 @@
       if (millisec - _500ms.dt >= _500ms.time) {
         _500ms.dt = millisec;
 
-        if (debug_timers == true) {
+        if (_500ms.debug == true) {
           Serial.println("<Start> 500 ms");
         }
 
@@ -391,7 +392,7 @@
       if (millisec - _1000ms.dt >= _1000ms.time) {
         _1000ms.dt = millisec;
 
-        if (debug_timers == true) {
+        if (_1000ms.debug == true) {
           Serial.println("<Start> 1000 ms");
         }
 
@@ -408,11 +409,6 @@
                 t.hour = 0;
                 
                 if (_RTC.use == true) {
-                  // RTC_s rtc_values  = getRTC(); // Aktuelle Uhrzeit einmal am Tag von der RTC holen
-                  // t.minute           = rtc_values.minute;
-                  // t.hour             = rtc_values.hour;
-                  // t.hourminute       = rtc_values.hourminute;
-
                   DateTime now  = RTC.now();
                   t.minute      = now.minute();
                   t.hour        = now.hour();
@@ -531,7 +527,7 @@
       if (millisec - _1500ms.dt >= _1500ms.time) {
         _1500ms.dt = millisec;
         
-        if (debug_timers == true) {
+        if (_1500ms.debug == true) {
           Serial.println("<Start> 1500 ms"); 
         }
 
@@ -661,7 +657,7 @@
       if ((millisec - _2000ms.dt > _2000ms.time)) {
         _2000ms.dt = millisec;
       
-        if (debug_timers == true) {
+        if (_2000ms.debug == true) {
           Serial.println("<START> 2000 ms");
         }
 
