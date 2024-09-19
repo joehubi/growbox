@@ -207,14 +207,13 @@
       RTC_config _RTC;
 
     // ################### Timer for timed loops
-      //const bool debug_timers = false;
       const bool debug_second_timer = false;
 
       class Cycle {
         public:
             int time = 1000;        // default 1000 ms
             unsigned long dt = 0;   // for timer calculation
-            bool debug = false;
+            bool debug = false;     // true = sends debug messages and cycle call
             Cycle() {}              // default
             Cycle(int time_in_ms) { // constructor with parameters
                 time = time_in_ms;
@@ -446,27 +445,21 @@
                 // Pipe ventilator should rest every few minutes to decrease heat-cost for growbox
                 if (pipevent.minute != pipevent.minute_pre) {
                   pipevent.minute_pre = pipevent.minute;
-            
-                  pipevent_timing.minute_count++;    // add counter
-                  //Serial.println("pipevent_minute_count: "+String(pipevent_minute_count));
-                        
-                  if (pipevent_timing.minute_count >= pipevent_timing.minute_change) {
-                    //Serial.println("Send pipeventilator to rest to reduce heating cost");
-                    //Serial.println("pipevent_timing.minute_change: "+String(pipevent_timing.minute_change));
+                  
+                  pipevent_timing.minute_count++;     // add counter
+                  
+                  if (pipevent_timing.minute_count >= pipevent_timing.minute_change) {                   
                     
-                    // reset counter
-                    pipevent_timing.minute_count = 0;
-            
-                    // Invertiere den Wert von ...
-                    if (pipevent.state == 0) {
+                    pipevent_timing.minute_count = 0; // reset counter
+
+                    // invert value of...
+                    if (pipevent.state == 0) { 
                       pipevent.state = 1;
                       pipevent_timing.minute_change = pipevent_timing.minute_ON; // Set pipeventilator ON for X min
-                      //Serial.println("pipeventilator ON for (min) - "+String(pipevent_minute_ON));
                     }
                     else {
                       pipevent.state = 0;
                       pipevent_timing.minute_change = pipevent_timing.minute_OFF; // Set pipeventilator ON for X min
-                      //Serial.println("pipeventilator OFF for (min) - "+String(pipevent_minute_OFF));
                     }
                   }
                   
@@ -561,7 +554,7 @@
                 ventilator.minute_pre = ventilator.minute;
 
                 if (debug_array == true) {
-                //Serial.println("check ventilator state");
+                  Serial.println("check ventilator state");
                 }
 
                 // Change ventilator state (on/off) according to actual minutes and state-array
@@ -569,14 +562,14 @@
                   if (t.minute == vent_min_array[i]) {
                     ventilator.state = vent_state_array[i];
                     if (debug_array == true) {
-                      //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
+                      Serial.println("change ventilator state (" + String(ventilator.state) + ") at minute: " + String(t.minute));
                     }
                     i = 1000; //exit for-loop
                   }
                   else if (t.minute < vent_min_array[i]) {
                     ventilator.state = vent_state_array[i-1];
                     if (debug_array == true) {
-                      //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
+                      Serial.println("change ventilator state (" + String(ventilator.state) + ") at minute: " + String(t.minute));
                     }
                     i = 1000; //exit for-loop       
                   }
@@ -616,7 +609,7 @@
                 led.minute_pre = led.minute;
 
                 if (debug_array == true) {
-                //Serial.println("check LED state");
+                  Serial.println("check LED state");
                 }
 
                 // Change led state (on/off) according to actual hour-minutes and state-array
@@ -624,14 +617,14 @@
                   if (t.hourminute == led_hourm_array[i]) {
                     led.state = led_state_array[i];
                     if (debug_array == true) {
-                      //Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(_hourminute));
+                      Serial.println("change LED state (" + String(led.state) + ") at hour minute: " + String(t.hourminute));
                     }
                     i = 1000; //exit for-loop
                   }
                   else if (t.hourminute < led_hourm_array[i]) {
                     led.state = led_state_array[i-1];
                     if (debug_array == true) {
-                      //Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(_hourminute));
+                      Serial.println("change LED state at (" + String(led.state) + ") hour minute: " + String(t.hourminute));
                     }
                     i = 1000; //exit for-loop       
                   }
