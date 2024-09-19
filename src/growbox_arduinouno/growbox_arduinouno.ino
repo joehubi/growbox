@@ -198,16 +198,13 @@
       */
 
       RTC_DS3231 RTC; 
-      const bool syncOnFirstStart = false;  // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen (default = FALSE)
 
-      const bool RTC_use         = true;      // 0 = don't use RTC (no init will be done), 1 = use RTC
-      const bool RTC_adjust      = false;     // adjust time on RTC chip
-
-      struct RTC_s {
-          int hour;
-          int minute;
-          int hourminute; // minute + 60 * hour (minutes of the day)  
+      struct RTC_config {
+        bool sync   = false;      // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen (default = FALSE)
+        bool use    = true;       // 0 = don't use RTC (no init will be done), 1 = use RTC
+        bool adjust = false;      // adjust time on RTC chip
       };
+      RTC_config _RTC;
 
     // ################### Timer for timed loops
       const bool debug_timers = false;
@@ -234,15 +231,11 @@
       unsigned long millisec;           // arduino time-ms
 
   // ################### Functions
-    // ################### RTC
-      RTC_s getRTC() {
-          DateTime now = RTC.now();
-          RTC_s outputs;
-          outputs.hour = now.hour();
-          outputs.minute = now.minute();
-          outputs.hourminute = outputs.minute + 60 * outputs.hour;  // Berechne hourminute (Minuten des Tages)
-          return outputs;
-      }
+    // ################### Time
+      int calc_hourminute(int minute, int hour) {
+        int hourminute  = minute + 60 * hour;  // Berechne hourminute (Minuten des Tages)
+        return hourminute; 
+      };
     // ################### FreeMemory  
     // extern int __heap_start, *__brkval;
     // int freeMemory() {
@@ -303,8 +296,8 @@
     // ################### Active Debugging
       // DS18B20::setDebug(true);
     // ################### RTC
-      if (RTC_use == true) {
-        if (RTC_adjust == true) {
+      if (_RTC.use == true) {
+        if (_RTC.adjust == true) {
           // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
           RTC.adjust(DateTime(2024, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
         }
@@ -313,17 +306,17 @@
         }
         else {
           Serial.println("RTC initialized");
-          RTC_s rtc_values = getRTC();    // get once at startup
-          t.minute     = rtc_values.minute;
-          t.hour       = rtc_values.hour;
-          t.hourminute = rtc_values.hourminute;
+          DateTime now  = RTC.now();
+          t.minute      = now.minute();
+          t.hour        = now.hour();
+          t.hourminute  = calc_hourminute(t.minute, t.hour);
         }
       }
       else {
         Serial.println("RTC time set manually");
         t.minute     = 0;     // time can be set here manually
         t.hour       = 12;   // time can be set here manually
-        t.hourminute = t.minute + 60*t.hour; // calc hourm (minutes of the day)       
+        t.hourminute  = calc_hourminute(t.minute, t.hour);     
       }  
 
       delay(50);
@@ -414,15 +407,20 @@
               if (t.hour >= 24) {
                 t.hour = 0;
                 
-                if (RTC_use == true) {
-                  RTC_s rtc_values  = getRTC(); // Aktuelle Uhrzeit einmal am Tag von der RTC holen
-                  t.minute           = rtc_values.minute;
-                  t.hour             = rtc_values.hour;
-                  t.hourminute       = rtc_values.hourminute;
+                if (_RTC.use == true) {
+                  // RTC_s rtc_values  = getRTC(); // Aktuelle Uhrzeit einmal am Tag von der RTC holen
+                  // t.minute           = rtc_values.minute;
+                  // t.hour             = rtc_values.hour;
+                  // t.hourminute       = rtc_values.hourminute;
+
+                  DateTime now  = RTC.now();
+                  t.minute      = now.minute();
+                  t.hour        = now.hour();
+                  t.hourminute  = calc_hourminute(t.minute, t.hour);
                 }
               }
             }
-            t.hourminute = t.minute + 60*t.hour; // calc hourm (minutes of the day)
+            t.hourminute  = calc_hourminute(t.minute, t.hour);
           }
           
           if (debug_second_timer == true) {
