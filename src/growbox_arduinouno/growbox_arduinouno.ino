@@ -198,25 +198,22 @@
       */
 
       RTC_DS3231 RTC; 
-      const bool syncOnFirstStart = false;  // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen (default = FALSE)
 
-      const bool RTC_use         = true;      // 0 = don't use RTC (no init will be done), 1 = use RTC
-      const bool RTC_adjust      = false;     // adjust time on RTC chip
-
-      struct RTC_s {
-          int hour;
-          int minute;
-          int hourminute; // minute + 60 * hour (minutes of the day)  
+      struct RTC_config {
+        bool sync   = false;      // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen (default = FALSE)
+        bool use    = true;       // 0 = don't use RTC (no init will be done), 1 = use RTC
+        bool adjust = false;      // adjust time on RTC chip
       };
+      RTC_config _RTC;
 
     // ################### Timer for timed loops
-      const bool debug_timers = false;
       const bool debug_second_timer = false;
 
       class Cycle {
         public:
             int time = 1000;        // default 1000 ms
             unsigned long dt = 0;   // for timer calculation
+            bool debug = false;     // true = sends debug messages and cycle call
             Cycle() {}              // default
             Cycle(int time_in_ms) { // constructor with parameters
                 time = time_in_ms;
@@ -234,15 +231,11 @@
       unsigned long millisec;           // arduino time-ms
 
   // ################### Functions
-    // ################### RTC
-      RTC_s getRTC() {
-          DateTime now = RTC.now();
-          RTC_s outputs;
-          outputs.hour = now.hour();
-          outputs.minute = now.minute();
-          outputs.hourminute = outputs.minute + 60 * outputs.hour;  // Berechne hourminute (Minuten des Tages)
-          return outputs;
-      }
+    // ################### Time
+      int calc_hourminute(int minute, int hour) {
+        int hourminute  = minute + 60 * hour;  // Berechne hourminute (Minuten des Tages)
+        return hourminute; 
+      };
     // ################### FreeMemory  
     // extern int __heap_start, *__brkval;
     // int freeMemory() {
@@ -303,8 +296,8 @@
     // ################### Active Debugging
       // DS18B20::setDebug(true);
     // ################### RTC
-      if (RTC_use == true) {
-        if (RTC_adjust == true) {
+      if (_RTC.use == true) {
+        if (_RTC.adjust == true) {
           // Hier kann (einmalig oder bei Wechsel der Sommer- bzw. Winterzeit) die Zeit für die RTC initialisiert werden
           RTC.adjust(DateTime(2024, 8, 23, 18, 23, 0)); // Adjust time YYYY,MM,DD,hh,mm,ss    
         }
@@ -313,17 +306,17 @@
         }
         else {
           Serial.println("RTC initialized");
-          RTC_s rtc_values = getRTC();    // get once at startup
-          t.minute     = rtc_values.minute;
-          t.hour       = rtc_values.hour;
-          t.hourminute = rtc_values.hourminute;
+          DateTime now  = RTC.now();
+          t.minute      = now.minute();
+          t.hour        = now.hour();
+          t.hourminute  = calc_hourminute(t.minute, t.hour);
         }
       }
       else {
         Serial.println("RTC time set manually");
         t.minute     = 0;     // time can be set here manually
         t.hour       = 12;   // time can be set here manually
-        t.hourminute = t.minute + 60*t.hour; // calc hourm (minutes of the day)       
+        t.hourminute  = calc_hourminute(t.minute, t.hour);     
       }  
 
       delay(50);
@@ -369,7 +362,7 @@
       if (millisec - _500ms.dt >= _500ms.time) {
         _500ms.dt = millisec;
 
-        if (debug_timers == true) {
+        if (_500ms.debug == true) {
           Serial.println("<Start> 500 ms");
         }
 
@@ -398,7 +391,7 @@
       if (millisec - _1000ms.dt >= _1000ms.time) {
         _1000ms.dt = millisec;
 
-        if (debug_timers == true) {
+        if (_1000ms.debug == true) {
           Serial.println("<Start> 1000 ms");
         }
 
@@ -414,15 +407,15 @@
               if (t.hour >= 24) {
                 t.hour = 0;
                 
-                if (RTC_use == true) {
-                  RTC_s rtc_values  = getRTC(); // Aktuelle Uhrzeit einmal am Tag von der RTC holen
-                  t.minute           = rtc_values.minute;
-                  t.hour             = rtc_values.hour;
-                  t.hourminute       = rtc_values.hourminute;
+                if (_RTC.use == true) {
+                  DateTime now  = RTC.now();
+                  t.minute      = now.minute();
+                  t.hour        = now.hour();
+                  t.hourminute  = calc_hourminute(t.minute, t.hour);
                 }
               }
             }
-            t.hourminute = t.minute + 60*t.hour; // calc hourm (minutes of the day)
+            t.hourminute  = calc_hourminute(t.minute, t.hour);
           }
           
           if (debug_second_timer == true) {
@@ -452,27 +445,21 @@
                 // Pipe ventilator should rest every few minutes to decrease heat-cost for growbox
                 if (pipevent.minute != pipevent.minute_pre) {
                   pipevent.minute_pre = pipevent.minute;
-            
-                  pipevent_timing.minute_count++;    // add counter
-                  //Serial.println("pipevent_minute_count: "+String(pipevent_minute_count));
-                        
-                  if (pipevent_timing.minute_count >= pipevent_timing.minute_change) {
-                    //Serial.println("Send pipeventilator to rest to reduce heating cost");
-                    //Serial.println("pipevent_timing.minute_change: "+String(pipevent_timing.minute_change));
+                  
+                  pipevent_timing.minute_count++;     // add counter
+                  
+                  if (pipevent_timing.minute_count >= pipevent_timing.minute_change) {                   
                     
-                    // reset counter
-                    pipevent_timing.minute_count = 0;
-            
-                    // Invertiere den Wert von ...
-                    if (pipevent.state == 0) {
+                    pipevent_timing.minute_count = 0; // reset counter
+
+                    // invert value of...
+                    if (pipevent.state == 0) { 
                       pipevent.state = 1;
                       pipevent_timing.minute_change = pipevent_timing.minute_ON; // Set pipeventilator ON for X min
-                      //Serial.println("pipeventilator ON for (min) - "+String(pipevent_minute_ON));
                     }
                     else {
                       pipevent.state = 0;
                       pipevent_timing.minute_change = pipevent_timing.minute_OFF; // Set pipeventilator ON for X min
-                      //Serial.println("pipeventilator OFF for (min) - "+String(pipevent_minute_OFF));
                     }
                   }
                   
@@ -533,7 +520,7 @@
       if (millisec - _1500ms.dt >= _1500ms.time) {
         _1500ms.dt = millisec;
         
-        if (debug_timers == true) {
+        if (_1500ms.debug == true) {
           Serial.println("<Start> 1500 ms"); 
         }
 
@@ -567,7 +554,7 @@
                 ventilator.minute_pre = ventilator.minute;
 
                 if (debug_array == true) {
-                //Serial.println("check ventilator state");
+                  Serial.println("check ventilator state");
                 }
 
                 // Change ventilator state (on/off) according to actual minutes and state-array
@@ -575,14 +562,14 @@
                   if (t.minute == vent_min_array[i]) {
                     ventilator.state = vent_state_array[i];
                     if (debug_array == true) {
-                      //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
+                      Serial.println("change ventilator state (" + String(ventilator.state) + ") at minute: " + String(t.minute));
                     }
                     i = 1000; //exit for-loop
                   }
                   else if (t.minute < vent_min_array[i]) {
                     ventilator.state = vent_state_array[i-1];
                     if (debug_array == true) {
-                      //Serial.println("change ventilator state (" + String(ventilator_state) + ") at minute: " + String(_minute));
+                      Serial.println("change ventilator state (" + String(ventilator.state) + ") at minute: " + String(t.minute));
                     }
                     i = 1000; //exit for-loop       
                   }
@@ -622,7 +609,7 @@
                 led.minute_pre = led.minute;
 
                 if (debug_array == true) {
-                //Serial.println("check LED state");
+                  Serial.println("check LED state");
                 }
 
                 // Change led state (on/off) according to actual hour-minutes and state-array
@@ -630,14 +617,14 @@
                   if (t.hourminute == led_hourm_array[i]) {
                     led.state = led_state_array[i];
                     if (debug_array == true) {
-                      //Serial.println("change LED state (" + String(led_state) + ") at hour minute: " + String(_hourminute));
+                      Serial.println("change LED state (" + String(led.state) + ") at hour minute: " + String(t.hourminute));
                     }
                     i = 1000; //exit for-loop
                   }
                   else if (t.hourminute < led_hourm_array[i]) {
                     led.state = led_state_array[i-1];
                     if (debug_array == true) {
-                      //Serial.println("change LED state at (" + String(led_state) + ") hour minute: " + String(_hourminute));
+                      Serial.println("change LED state at (" + String(led.state) + ") hour minute: " + String(t.hourminute));
                     }
                     i = 1000; //exit for-loop       
                   }
@@ -663,7 +650,7 @@
       if ((millisec - _2000ms.dt > _2000ms.time)) {
         _2000ms.dt = millisec;
       
-        if (debug_timers == true) {
+        if (_2000ms.debug == true) {
           Serial.println("<START> 2000 ms");
         }
 
