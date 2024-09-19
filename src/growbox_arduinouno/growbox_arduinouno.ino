@@ -101,6 +101,19 @@
               int minute_pre = 0; 
           };
 
+        struct switch_timing {
+          int minute_change = 0;
+          int minute_ON     = 2;
+          int minute_OFF    = 5;
+          int minute_count  = 0;
+        };
+
+        struct dutycycle {
+          int ctl         = 50;     // Duty cycle control (%)
+          double f_set    = 0.0;    // 0-100% in float
+          int int_set     = 0;      // 0-100% in integer
+        };
+
         const int _OFF  = 0;
         const int _ON   = 1;
         const int AUTO  = 2;
@@ -110,22 +123,9 @@
         const int LED_ARRAY = 4;    // Entsprechend Array 
 
       // ################### Pipe ventilator (socket switch + PWM signal)
-        timed_switch pipevent;
-
-        struct switch_timing {
-          int minute_change = 0;
-          int minute_ON     = 2;
-          int minute_OFF    = 5;
-          int minute_count  = 0;
-        };
-        struct dutycycle {
-          int ctl         =  50;     // Duty cycle control (%)
-          double f_set    = 0.0;     // 0-100% in float
-          int int_set     = 0;       // 0-100% in integer
-        };
-
+        timed_switch  pipevent;
         switch_timing pipevent_timing;
-        dutycycle pipevent_dutycycle;
+        dutycycle     pipevent_dutycycle;
   
         // int icr_const     = 8000;    // ONLY TIMER1 -> results in 1 Hz PWM cycle (debugging)
         // int icr_const       = 7;     // ONLY TIMER1 -> results in 1,12 kHz PWM cycle 
@@ -261,7 +261,7 @@
       ventilator.state_ctl    = 1;    // ON
       pipevent_dutycycle.ctl  = 50;   // 50 %
 
-    // ################### Debugging  
+    // ################### Debugging Monitor  
       Serial.begin(9600);             // for Debugging/print  
       while (!Serial) {
         ; // wait for serial port to connect
@@ -300,7 +300,7 @@
       dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
       dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
     
-    // ################### DS18B20 temp.
+    // ################### Active Debugging
       // DS18B20::setDebug(true);
     // ################### RTC
       if (RTC_use == true) {
