@@ -9,6 +9,7 @@
     #include <ESPAsyncTCP.h>        // https://github.com/me-no-dev/ESPAsyncTCP
     #include <ESPAsyncWebServer.h>  // https://github.com/me-no-dev/ESPAsyncWebServer
     #include <dataexchange.h>       // https://github.com/joehubi/dataexchange.git
+    #include "wifi.h"
   // ################### Variables
     // ################### Debugging
       #define PRINT_VARIABLE(var) Serial.print(#var " = "); Serial.println(var);
@@ -62,8 +63,6 @@
       unsigned long cycle_1000ms_dt = 0;
 
     // ################### WiFi
-      const char* ssid = "Pumuckel";            // wifi network
-      const char* password = "Stiller_83";      // wifi network
       AsyncWebServer server(80);                // Create AsyncWebServer object on port ...
     // ################### Actuators
       struct state_ctl {  // class for actuators to control and visualize states
@@ -276,7 +275,7 @@
       }
 
     // ################### WiFi.mode(WIFI_STA);
-      WiFi.begin(ssid, password);
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
       while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
         Serial.println("Connecting to WiFi ...");
