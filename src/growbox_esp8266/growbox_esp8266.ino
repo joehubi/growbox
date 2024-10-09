@@ -51,12 +51,13 @@
       int word_minute = 0;
 
     // ################### Timers
-      const bool debug_timers = true;
       unsigned long millisec;           // time-ms
 
+      const bool debug_timer_50ms = false;
       const unsigned long cycle_50ms = 50;  // in ms
       unsigned long cycle_50ms_dt = 0;
 
+      const bool debug_timer_1000ms = true;
       const unsigned long cycle_1000ms = 1000;  // in ms
       unsigned long cycle_1000ms_dt = 0;
 
@@ -458,7 +459,7 @@
       if ((millisec - cycle_50ms_dt > cycle_50ms)) {
         cycle_50ms_dt = millisec; 
 
-        if (debug_timers == true) {
+        if (debug_timer_50ms == true) {
           Serial.println("<Start> 50 ms");
         }
 
@@ -477,7 +478,7 @@
       if ((millisec - cycle_1000ms_dt > cycle_1000ms)) {
         cycle_1000ms_dt = millisec;
 
-        if (debug_timers == true) {
+        if (debug_timer_1000ms == true) {
           Serial.println("<Start> 1000 ms");
         }
 

@@ -248,7 +248,7 @@
   void setup(void){
     // ################### Active Debugging
       DS18B20::setDebug(false);
-      _50ms.debug   = true;    
+      _50ms.debug   = false;    
       _1000ms.debug = true;  
       _1500ms.debug = true;  
       _2000ms.debug = true;
@@ -385,9 +385,9 @@
           byte _number_of_items = sscanf(received_data,"%u,%u,%u,%u,%u,%u,%u", \
           &heater.state_ctl, &pipevent.state_ctl, &led.state_ctl, &ventilator.state_ctl, \
           &pipevent_dutycycle.ctl, &pipevent_timing.minute_ON, &pipevent_timing.minute_OFF);
-          if (debug_softwareserial == true) {
-            PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
-          }
+          // if (debug_softwareserial == true) {
+          //   PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
+          // }
       }
 
     // ################### 1000 ms
