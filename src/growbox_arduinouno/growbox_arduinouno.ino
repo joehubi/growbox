@@ -238,20 +238,20 @@
         return hourminute; 
       };
     // ################### FreeMemory  
-    // extern int __heap_start, *__brkval;
-    // int freeMemory() {
-    //     int v;
-    //     return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
-    // }
+      // extern int __heap_start, *__brkval;
+      // int freeMemory() {
+      //     int v;
+      //     return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+      // }
 
 // ################### SETUP
   void setup(void){
     // ################### Active Debugging
       DS18B20::setDebug(false);
       _50ms.debug   = false;    
-      _1000ms.debug = true;  
-      _1500ms.debug = true;  
-      _2000ms.debug = true;
+      _1000ms.debug = false;  
+      _1500ms.debug = false;  
+      _2000ms.debug = false;
     // ################### Initial values (if ESP8266 is not available)
       // In case of no ESP8266 (Node MCU) connection set initial values
       // These values are immediately overwritten by the ESP8266
