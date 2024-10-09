@@ -1,14 +1,14 @@
 /*
   Johannes Huber
   https://github.com/joehubi/growbox
-  15.09.2024
+  09.10.2024
 */
 
 // ################### DEFINITION
   // ################### Library
 
     // Lib's integrated in Arduino-Standard folder  
-    #include <SoftwareSerial.h>
+    #include <dataexchange.h>         // https://github.com/joehubi/dataexchange.git
     #include <RTClib.h>               // https://github.com/StephanFink/RTClib/
     #include <DallasTemperature.h>    // https://github.com/milesburton/Arduino-Temperature-Control-Library.git
     #include <DHT.h>                  // https://github.com/Khuuxuanngoc/DHT-sensor-library.git
@@ -172,13 +172,14 @@
     // ################### Software Serial
       #define rxPin 12
       #define txPin 13
-      SoftwareSerial SoftwareSerial_Arduino(rxPin, txPin);
-      const bool debug_softwareserial = false;    
+
+      dataexchange DATAX_ARDU_ESP(rxPin, txPin);
+
+      const bool debug_softwareserial = true;    
       // ################### READ
-        const int incoming_char_size = 50; 
-        char incoming_char_array[incoming_char_size]; // max. number of sign's in one incoming string
+        char received_data[50]; // Maximale Zeichen in der Variable
       // ################### SEND
-        char send_char_array[50]; // Puffer für die Datenübertragung (max. Länge der Nachricht festlegen)
+        char data_to_send[50]; // Puffer für die Datenübertragung (max. Länge der Nachricht festlegen)
         int snd_ctn = 0;
     // ################### Time
       struct time_ {
@@ -223,7 +224,7 @@
             }
       };
 
-      Cycle _500ms(500);    // build instance for 500 ms cycle-timer
+      Cycle _50ms(50);    // build instance for 500 ms cycle-timer
       Cycle _1000ms(1000);  
       Cycle _1500ms(1500);  
       Cycle _2000ms(2000);  
@@ -245,6 +246,12 @@
 
 // ################### SETUP
   void setup(void){
+    // ################### Active Debugging
+      DS18B20::setDebug(false);
+      _50ms.debug  = false;    
+      _1000ms.debug = true;  
+      _1500ms.debug = false;  
+      _2000ms.debug = false;
     // ################### Initial values (if ESP8266 is not available)
       // In case of no ESP8266 (Node MCU) connection set initial values
       // These values are immediately overwritten by the ESP8266
@@ -260,10 +267,10 @@
         ; // wait for serial port to connect
       }
       delay(1000);
-    // ################### SoftwareSerial
+    // ################### dataexchange
       pinMode(rxPin, INPUT);
       pinMode(txPin, OUTPUT);
-      SoftwareSerial_Arduino.begin(9600);
+      DATAX_ARDU_ESP.begin(9600);
     // ################### Digital-Output
       // ################### set pin numbers
         heater.pin      = PD2;
@@ -293,8 +300,6 @@
       dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
       dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
     
-    // ################### Active Debugging
-      // DS18B20::setDebug(true);
     // ################### RTC
       if (_RTC.use == true) {
         if (_RTC.adjust == true) {
@@ -359,42 +364,35 @@
   void loop(void){
     millisec = millis();  // get time from arduino-clock (time since arduino is running in ms)
     // ################### 500 ms
-      if (millisec - _500ms.dt >= _500ms.time) {
-        _500ms.dt = millisec;
+      if (millisec - _50ms.dt >= _50ms.time) {
+        _50ms.dt = millisec;
 
-        if (_500ms.debug == true) {
+        if (_50ms.debug == true) {
           Serial.println("<Start> 500 ms");
         }
 
-        // ################### READ SoftwareSerial
-          if (SoftwareSerial_Arduino.available()) {
-            delay(50);  // short delay, to be sure all data is present at the Rx
-            String _incoming_string = SoftwareSerial_Arduino.readStringUntil('\n'); // read Rx
-            _incoming_string.toCharArray(incoming_char_array, incoming_char_size);     // copy data to char-Array (for sscanf)
+        // ################### dataexchange READ
+          if (DATAX_ARDU_ESP.rxData(received_data, 50)) {  // check if data is available and get data
             if (debug_softwareserial == true) {
-              int _lenght = _incoming_string.length();  // lenght for debugging
-              PRINT_VARIABLE(_lenght);                  // lenght for debugging
-              PRINT_VARIABLE(incoming_char_array);
+              PRINT_VARIABLE(received_data);  // debugging
             }
-            // decode data from char-array
-            byte _number_of_items = sscanf(incoming_char_array,"%u,%u,%u,%u,%u,%u,%u", \
-            &heater.state_ctl, &pipevent.state_ctl, &led.state_ctl, &ventilator.state_ctl, \
-            &pipevent_dutycycle.ctl, &pipevent_timing.minute_ON, &pipevent_timing.minute_OFF);
-            if (debug_softwareserial == true) {
-              PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
-            }
+          }
+          // decode data from char-array
+          byte _number_of_items = sscanf(received_data,"%u,%u,%u,%u,%u,%u,%u", \
+          &heater.state_ctl, &pipevent.state_ctl, &led.state_ctl, &ventilator.state_ctl, \
+          &pipevent_dutycycle.ctl, &pipevent_timing.minute_ON, &pipevent_timing.minute_OFF);
+          if (debug_softwareserial == true) {
+            PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
           }
       }
 
     // ################### 1000 ms
-
       if (millisec - _1000ms.dt >= _1000ms.time) {
         _1000ms.dt = millisec;
 
         if (_1000ms.debug == true) {
           Serial.println("<Start> 1000 ms");
         }
-
         // ################### Calculate times with second-timer
           t.second++;
         
@@ -505,18 +503,20 @@
           pipevent_dutycycle.int_set = pipevent_dutycycle.f_set*10;
         // ################### to interface (SoftwareSerial)      
           snd_ctn++;
-          sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", \
+
+          sprintf(data_to_send, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", \
           DS18B20_temp1.t_int, DS18B20_temp2.t_int, DS18B20_temp3.t_int, \
           pipevent_dutycycle.int_set, heater.state, pipevent.state, led.state, ventilator.state, \
           t.hour,t.minute, debo.soil_humidity_p, snd_ctn, dht22_1.hum, dht22_2.hum);
-          SoftwareSerial_Arduino.println(send_char_array);
+          
+          DATAX_ARDU_ESP.txData(data_to_send);
+
           if (debug_softwareserial == true) {
-            PRINT_VARIABLE(send_char_array);
+            PRINT_VARIABLE(data_to_send);
           }
       }
 
     // ################### 1500 ms
-
       if (millisec - _1500ms.dt >= _1500ms.time) {
         _1500ms.dt = millisec;
         
