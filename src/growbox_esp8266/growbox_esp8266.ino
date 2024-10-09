@@ -8,24 +8,22 @@
   // ################### Libray
     #include <ESPAsyncTCP.h>        // https://github.com/me-no-dev/ESPAsyncTCP
     #include <ESPAsyncWebServer.h>  // https://github.com/me-no-dev/ESPAsyncWebServer
-    #include <SoftwareSerial.h>
-
+    #include <dataexchange.h>       // https://github.com/joehubi/dataexchange.git
   // ################### Variables
     // ################### Debugging
       #define PRINT_VARIABLE(var) Serial.print(#var " = "); Serial.println(var);
 
-    // ################### SoftwareSerial
+    // ################### Dataexchange
       #define rxPin D5
       #define txPin D6
-      SoftwareSerial SoftwareSerial_ESP8266(rxPin, txPin);
+      dataexchange DATAX_ARDU_ESP(rxPin, txPin);
       const bool debug_softwareserial = true;   
       int msg_req_feedback = 0;
       // ################### READ
-        const int incoming_char_size = 200;  
-        char incoming_char_array[incoming_char_size]; // max. number of signs in data string 
+        char received_data[50]; // max. number of signs in data string
       // ################### SEND
-        char send_char_array[50];
-        int snd_active = 0; // > 5 = SEND aktivieren 
+        char data_to_send[50];
+        int snd_active = 0;   // > 5 = SEND aktivieren 
         const int snd_counts_to_active = 5; 
     // ################### pipe ventilator dutycycle
       float dutycycle = 0.0;
@@ -53,11 +51,11 @@
       int word_minute = 0;
 
     // ################### Timers
-      const bool debug_timers = false;
+      const bool debug_timers = true;
       unsigned long millisec;           // time-ms
 
-      const unsigned long cycle_500ms = 50;  // in ms
-      unsigned long cycle_500ms_dt = 0;
+      const unsigned long cycle_50ms = 50;  // in ms
+      unsigned long cycle_50ms_dt = 0;
 
       const unsigned long cycle_1000ms = 1000;  // in ms
       unsigned long cycle_1000ms_dt = 0;
@@ -265,10 +263,10 @@
         ; // wait for serial port to connect
       }
       delay(1000);
-    // ################### SoftwareSerial
+    // ################### Dataexchange
       pinMode(rxPin, INPUT);
       pinMode(txPin, OUTPUT);
-      SoftwareSerial_ESP8266.begin(9600);
+      DATAX_ARDU_ESP.begin(9600);
       delay(1000);
     // ################### Initialize SPIFFS (for web server)
       if(!SPIFFS.begin()){
@@ -456,28 +454,23 @@
 // ################### LOOP
   void loop(){
     millisec = millis();
-    // ################### 500 ms
-      if ((millisec - cycle_500ms_dt > cycle_500ms)) {
-        cycle_500ms_dt = millisec; 
+    // ################### 50 ms
+      if ((millisec - cycle_50ms_dt > cycle_50ms)) {
+        cycle_50ms_dt = millisec; 
 
         if (debug_timers == true) {
-          Serial.println("<Start> 500 ms");
+          Serial.println("<Start> 50 ms");
         }
 
-        // ################### READ
-          if (SoftwareSerial_ESP8266.available()) {
-            if (snd_active < snd_counts_to_active) {
-              snd_active++; // count to 20
-            }
-            delay(50);    // short delay that all received data is present at the Rx
-            String _incoming_string = SoftwareSerial_ESP8266.readStringUntil('\n'); // read Rx until \n
-            _incoming_string.toCharArray(incoming_char_array, incoming_char_size); // copy data to char-Array (for sscanf)
-            if (debug_softwareserial == true) {
-              PRINT_VARIABLE(incoming_char_array);
-            }
-            // decode data from char-array
-            sscanf(incoming_char_array, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", &TS01_int, &TS02_int, &TS03_int, &dutycycle_int, &heater.state, &pipevent.state, &led.state, &ventilator.state, &word_hour, &word_minute, &debocap_percentage, &msg_req_feedback, &FS01_LF, &FS02_LF);
-          }             
+        // ################### dataexchange READ
+        if (DATAX_ARDU_ESP.rxData(received_data, 50)) {  // check if data is available and get data
+          if (debug_softwareserial == true) {
+            PRINT_VARIABLE(received_data);  // debugging
+          }
+        }
+
+        sscanf(received_data, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", &TS01_int, &TS02_int, &TS03_int, &dutycycle_int, &heater.state, &pipevent.state, &led.state, &ventilator.state, &word_hour, &word_minute, &debocap_percentage, &msg_req_feedback, &FS01_LF, &FS02_LF);
+        
       }
     
     // ################### 1000 ms 
@@ -507,11 +500,15 @@
           ventilator.state_str  = state_txt(ventilator.state);   
 
         // ################### SEND
+          if (snd_active < snd_counts_to_active) {
+            snd_active++;
+          }
+        // ################### dataexchange SEND
           if (snd_active >= snd_counts_to_active) {
-            sprintf(send_char_array, "%u,%u,%u,%u,%u,%u,%u", heater.state_ctl, pipevent.state_ctl, led.state_ctl, ventilator.state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
-            SoftwareSerial_ESP8266.println(send_char_array);
+            sprintf(data_to_send, "%u,%u,%u,%u,%u,%u,%u", heater.state_ctl, pipevent.state_ctl, led.state_ctl, ventilator.state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
+            DATAX_ARDU_ESP.txData(data_to_send);
             if (debug_softwareserial == true) {
-              PRINT_VARIABLE(send_char_array);
+              PRINT_VARIABLE(data_to_send); // debugging
             }
           }
       }

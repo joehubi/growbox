@@ -22,60 +22,62 @@
       // Interupt-Input for testing the Interupt-Output
       // const byte interruptPin = 2;      // Debugging
       // volatile byte state = LOW;        // Debugging
+    // ################### DHT22 (temp & humidity)
+      #define DHTPIN1 6          // Connected on Pin D6 on Arduino UNO    
+      #define DHTPIN2 7          // Connected on Pin D7 on Arduino UNO      
+      #define DHTTYPE DHT22      // Es handelt sich um den DHT22 Sensor
 
-    // ################### Sensor's
-      // ################### DHT22 (temp & humidity)
-        #define DHTPIN1 6          // Connected on Pin D6 on Arduino UNO    
-        #define DHTPIN2 7          // Connected on Pin D7 on Arduino UNO      
-        #define DHTTYPE DHT22      // Es handelt sich um den DHT22 Sensor
+      DHT dht1(DHTPIN1, DHTTYPE);               // Der Sensor wird mit „dth1“ angesprochen
+      DHT dht2(DHTPIN2, DHTTYPE);               // Der Sensor wird mit „dth2“ angesprochen
 
-        DHT dht1(DHTPIN1, DHTTYPE);               // Der Sensor wird mit „dth1“ angesprochen
-        DHT dht2(DHTPIN2, DHTTYPE);               // Der Sensor wird mit „dth2“ angesprochen
-
-        class DHT22_th {
-          public:
-            int temp = 0;
-            int hum = 0;
-            static bool debug;
-        };
-
-        bool DHT22_th::debug = false;   // init static bool for all instances
-        DHT22_th dht22_1;               // build instance of class
-        DHT22_th dht22_2;
-  
-      // ################### SHELLY DS18B20 (Temperature, OneWire)
-        #define ONE_WIRE_BUS 8                    // Data wire on Pin D8 at Arduino UNO
-        OneWire oneWire(ONE_WIRE_BUS);            // Setup a OneWire instance to communicate with any OneWire devices
-        DallasTemperature tempsensors(&oneWire);  // Pass OneWire reference to Dallas Temperature
-
-        class DS18B20 {
+      class DHT22_th {
         public:
-            float t_float = 0.0;
-            int t_int = 0;  
+          int temp = 0;
+          int hum = 0;
+          static bool debug;  // true = debugging active
+          static bool use;    // true = active
+      };
 
-            /**
-            * @brief Static debug variable that applies to all instances.
-            * If `true`, debug outputs are activated.
-            */
-            static bool debug;    // Static debug variable that applies to all instances
-  
-            /**
-            * @brief Static method for setting the debug variable.
-            * 
-            * @param debugvalue Value `true` to activate debugging or `false` to deactivate it.
-            */
-            static void setDebug(bool debugvalue) { // Static method for setting the debug variable
-                debug = debugvalue;
-            }
-        };
+      bool DHT22_th::debug  = false;    // init static bool for all instances
+      bool DHT22_th::use    = false;   
+      DHT22_th dht22_1;                 // build instance of class
+      DHT22_th dht22_2;
 
-        bool DS18B20::debug = false; // Initialization of the static variable
+    // ################### SHELLY DS18B20 (Temperature, OneWire)
+      #define ONE_WIRE_BUS 8                    // Data wire on Pin D8 at Arduino UNO
+      OneWire oneWire(ONE_WIRE_BUS);            // Setup a OneWire instance to communicate with any OneWire devices
+      DallasTemperature tempsensors(&oneWire);  // Pass OneWire reference to Dallas Temperature
 
-        DS18B20 DS18B20_temp1;    // build instance of class
-        DS18B20 DS18B20_temp2;
-        DS18B20 DS18B20_temp3; 
+      class DS18B20 {
+      public:
+          float t_float = 0.0;
+          int t_int = 0;  
 
-      // ################### Soil Humuditiy sensor
+          /**
+          * @brief Static debug variable that applies to all instances.
+          * If `true`, debug outputs are activated.
+          */
+          static bool debug;    // Static debug variable that applies to all instances
+          static bool use;      // true = active
+
+          /**
+          * @brief Static method for setting the debug variable.
+          * 
+          * @param debugvalue Value `true` to activate debugging or `false` to deactivate it.
+          */
+          static void setDebug(bool debugvalue) { // Static method for setting the debug variable
+              debug = debugvalue;
+          }
+      };
+
+      bool DS18B20::debug = false;  // Initialization of the static variable
+      bool DS18B20::use = false;    
+
+      DS18B20 DS18B20_temp1;    // build instance of class
+      DS18B20 DS18B20_temp2;
+      DS18B20 DS18B20_temp3; 
+
+    // ################### Soil Humuditiy sensor
         class DEBOCAP {
           public:
             bool debug;
@@ -169,12 +171,10 @@
           1   , 1   , 1   , 1   , 1   , 1   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0   , 0
           };    // on/off time of LED can be programmed here (0=off, 1=on within one day)
           
-    // ################### Software Serial
+    // ################### Dataexchange
       #define rxPin 12
       #define txPin 13
-
       dataexchange DATAX_ARDU_ESP(rxPin, txPin);
-
       const bool debug_softwareserial = true;    
       // ################### READ
         char received_data[50]; // Maximale Zeichen in der Variable
@@ -202,7 +202,7 @@
 
       struct RTC_config {
         bool sync   = false;      // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen (default = FALSE)
-        bool use    = true;       // 0 = don't use RTC (no init will be done), 1 = use RTC
+        bool use    = false;       // 0 = don't use RTC (no init will be done), 1 = use RTC
         bool adjust = false;      // adjust time on RTC chip
       };
       RTC_config _RTC;
@@ -248,10 +248,10 @@
   void setup(void){
     // ################### Active Debugging
       DS18B20::setDebug(false);
-      _50ms.debug  = false;    
+      _50ms.debug   = true;    
       _1000ms.debug = true;  
-      _1500ms.debug = false;  
-      _2000ms.debug = false;
+      _1500ms.debug = true;  
+      _2000ms.debug = true;
     // ################### Initial values (if ESP8266 is not available)
       // In case of no ESP8266 (Node MCU) connection set initial values
       // These values are immediately overwritten by the ESP8266
@@ -290,16 +290,20 @@
     // ################### DEBOCAP
       debo.debug  = false;
       debo.pin    = A0;
-      debo.p100   = 258;  // tested for water (3,3 V with short connection)
-      debo.p0     = 635;  // tested for dry air (3,3 V with short connection)
-      // debo.p0     = 429;  // tested for normal soil (3,3 V with short connection)
-      // debo.p0     = 255;  // tested for wet soil (3,3 V with short connection)
+      debo.p100   = 258;      // tested for water (3,3 V with short connection)
+      debo.p0     = 635;      // tested for dry air (3,3 V with short connection)
+      // debo.p0     = 429;   // tested for normal soil (3,3 V with short connection)
+      // debo.p0     = 255;   // tested for wet soil (3,3 V with short connection)
 
-    // ################### DHT temp.
-      tempsensors.begin();    // Temperatursensoren starten         
-      dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
-      dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
-    
+    // ################### DHT22
+      if (DHT22_th::use == true) {
+        dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
+        dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
+      }
+    // ################### DS18B20
+      if (DS18B20::use == true) {
+        tempsensors.begin();    // Temperatursensoren starten 
+      }    
     // ################### RTC
       if (_RTC.use == true) {
         if (_RTC.adjust == true) {
@@ -363,12 +367,12 @@
 // ################### LOOP
   void loop(void){
     millisec = millis();  // get time from arduino-clock (time since arduino is running in ms)
-    // ################### 500 ms
+    // ################### 50 ms
       if (millisec - _50ms.dt >= _50ms.time) {
         _50ms.dt = millisec;
 
         if (_50ms.debug == true) {
-          Serial.println("<Start> 500 ms");
+          Serial.println("<Start> 50 ms");
         }
 
         // ################### dataexchange READ
@@ -655,10 +659,12 @@
         }
 
         // ############################################   READ temperature sensors
-          tempsensors.requestTemperatures();
-          DS18B20_temp1.t_float = tempsensors.getTempCByIndex(0);
-          DS18B20_temp2.t_float = tempsensors.getTempCByIndex(1);
-          DS18B20_temp3.t_float = tempsensors.getTempCByIndex(2);
+          if (DS18B20::use == true) {
+            tempsensors.requestTemperatures();
+            DS18B20_temp1.t_float = tempsensors.getTempCByIndex(0);
+            DS18B20_temp2.t_float = tempsensors.getTempCByIndex(1);
+            DS18B20_temp3.t_float = tempsensors.getTempCByIndex(2);
+          }
 
           if (DS18B20::debug == true) {
             Serial.println("Temperaturen [°C] der DS18B20-Sensoren");
@@ -680,12 +686,13 @@
           }
 
         // ############################################   READ humidity sensor
-          dht22_1.hum = dht1.readHumidity();        
-          dht22_1.temp  = dht1.readTemperature(); 
-              
-          dht22_1.hum = dht2.readHumidity();        
-          dht22_2.temp  = dht2.readTemperature();  
-
+          if (DHT22_th::debug == true) {
+            dht22_1.hum = dht1.readHumidity();        
+            dht22_1.temp  = dht1.readTemperature(); 
+                
+            dht22_1.hum = dht2.readHumidity();        
+            dht22_2.temp  = dht2.readTemperature();  
+          }
           if (DHT22_th::debug == true) {
             Serial.println("Relative Luftfeuchtigkeit [%] und Temperatur [°C] des DHT22");
             PRINT_VARIABLE(dht22_1.hum);
