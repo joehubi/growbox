@@ -13,12 +13,11 @@
   // ################### Variables
     // ################### Debugging
       #define PRINT_VARIABLE(var) Serial.print(#var " = "); Serial.println(var);
-
     // ################### Dataexchange
       #define rxPin D5
       #define txPin D6
       dataexchange DATAX_ARDU_ESP(rxPin, txPin);
-      const bool debug_softwareserial = true;   
+      const bool dataexchange_debug = false;   
       int msg_req_feedback = 0;
       // ################### READ
         char received_data[50]; // max. number of signs in data string
@@ -58,7 +57,7 @@
       const unsigned long cycle_50ms = 50;  // in ms
       unsigned long cycle_50ms_dt = 0;
 
-      const bool debug_timer_1000ms = true;
+      const bool debug_timer_1000ms = false;
       const unsigned long cycle_1000ms = 1000;  // in ms
       unsigned long cycle_1000ms_dt = 0;
 
@@ -273,7 +272,6 @@
         Serial.println("An Error has occurred while mounting SPIFFS");
         return;
       }
-
     // ################### WiFi.mode(WIFI_STA);
       WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
       while (WiFi.status() != WL_CONNECTED) {
@@ -353,7 +351,7 @@
 
         // ################### dataexchange READ
         if (DATAX_ARDU_ESP.rxData(received_data, 50)) {  // check if data is available and get data
-          if (debug_softwareserial == true) {
+          if (dataexchange_debug == true) {
             PRINT_VARIABLE(received_data);  // debugging
           }
         }
@@ -396,7 +394,7 @@
           if (snd_active >= snd_counts_to_active) {
             sprintf(data_to_send, "%u,%u,%u,%u,%u,%u,%u", heater.state_ctl, pipevent.state_ctl, led.state_ctl, ventilator.state_ctl, pipevent_dutycycle_ctl, pipevent_minute_ON, pipevent_minute_OFF);
             DATAX_ARDU_ESP.txData(data_to_send);
-            if (debug_softwareserial == true) {
+            if (dataexchange_debug == true) {
               PRINT_VARIABLE(data_to_send); // debugging
             }
           }

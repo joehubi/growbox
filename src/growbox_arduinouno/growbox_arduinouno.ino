@@ -38,7 +38,7 @@
           static bool use;    // true = active
       };
 
-      bool DHT22_th::debug  = false;    // init static bool for all instances
+      bool DHT22_th::debug  = true;    // init static bool for all instances
       bool DHT22_th::use    = false;   
       DHT22_th dht22_1;                 // build instance of class
       DHT22_th dht22_2;
@@ -175,7 +175,7 @@
       #define rxPin 12
       #define txPin 13
       dataexchange DATAX_ARDU_ESP(rxPin, txPin);
-      const bool debug_softwareserial = true;    
+      const bool dataexchange_debug = false;    
       // ################### READ
         char received_data[50]; // Maximale Zeichen in der Variable
       // ################### SEND
@@ -249,7 +249,7 @@
     // ################### Active Debugging
       DS18B20::setDebug(false);
       _50ms.debug   = false;    
-      _1000ms.debug = false;  
+      _1000ms.debug = true;  
       _1500ms.debug = false;  
       _2000ms.debug = false;
     // ################### Initial values (if ESP8266 is not available)
@@ -377,7 +377,7 @@
 
         // ################### dataexchange READ
           if (DATAX_ARDU_ESP.rxData(received_data, 50)) {  // check if data is available and get data
-            if (debug_softwareserial == true) {
+            if (dataexchange_debug == true) {
               PRINT_VARIABLE(received_data);  // debugging
             }
           }
@@ -385,7 +385,7 @@
           byte _number_of_items = sscanf(received_data,"%u,%u,%u,%u,%u,%u,%u", \
           &heater.state_ctl, &pipevent.state_ctl, &led.state_ctl, &ventilator.state_ctl, \
           &pipevent_dutycycle.ctl, &pipevent_timing.minute_ON, &pipevent_timing.minute_OFF);
-          // if (debug_softwareserial == true) {
+          // if (dataexchange_debug == true) {
           //   PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
           // }
       }
@@ -515,7 +515,7 @@
           
           DATAX_ARDU_ESP.txData(data_to_send);
 
-          if (debug_softwareserial == true) {
+          if (dataexchange_debug == true) {
             PRINT_VARIABLE(data_to_send);
           }
       }
