@@ -374,13 +374,14 @@
 
         // ################### Check connection to Arduino
 
-        if (msg_req_feedback =! msg_req_feedback_) {
-          msg_req_feedback_ == msg_req_feedback;    // save value
-          msg_req_feedback_con = true;              // connection OK
+        if (msg_req_feedback != msg_req_feedback_) {
+          msg_req_feedback_ = msg_req_feedback;    // save value
+          msg_req_feedback_con = true;             // connection OK
           msg_req_feedback_dt = 0;
         }
         else {
           msg_req_feedback_dt++;
+          Serial.println("Warning: No feedback from Arduino");
           if (msg_req_feedback_dt > 10) {           // if 10 seconds no feeback from Ardion -> Not OK
             msg_req_feedback_con = false;           // connection lost
             Serial.println("Error: Connection to Arduion via TxRx lost!");
