@@ -17,8 +17,6 @@
     #define PRINT_VARIABLE(var) Serial.print(#var " = "); Serial.println(var);
   // ################### Variables
     // ################### General debugging Variables
-      const bool debug_array   = false;    // Debugging Array-Management
-
       // Interupt-Input for testing the Interupt-Output
       // const byte interruptPin = 2;      // Debugging
       // volatile byte state = LOW;        // Debugging
@@ -32,14 +30,11 @@
 
       class DHT22_th {
         public:
-          int temp = 0;
-          int hum = 0;
-          static bool debug;  // true = debugging active
-          static bool use;    // true = active
+          int   temp  = 0;
+          int   hum   = 0;
+          bool  use   = true;
       };
 
-      bool DHT22_th::debug  = true;    // init static bool for all instances
-      bool DHT22_th::use    = false;   
       DHT22_th dht22_1;                 // build instance of class
       DHT22_th dht22_2;
 
@@ -51,27 +46,10 @@
       class DS18B20 {
       public:
           float t_float = 0.0;
-          int t_int = 0;  
-
-          /**
-          * @brief Static debug variable that applies to all instances.
-          * If `true`, debug outputs are activated.
-          */
-          static bool debug;    // Static debug variable that applies to all instances
-          static bool use;      // true = active
-
-          /**
-          * @brief Static method for setting the debug variable.
-          * 
-          * @param debugvalue Value `true` to activate debugging or `false` to deactivate it.
-          */
-          static void setDebug(bool debugvalue) { // Static method for setting the debug variable
-              debug = debugvalue;
-          }
+          int   t_int   = 0;  
       };
 
-      bool DS18B20::debug = false;  // Initialization of the static variable
-      bool DS18B20::use = false;    
+      bool DS18B20_use = true;
 
       DS18B20 DS18B20_temp1;    // build instance of class
       DS18B20 DS18B20_temp2;
@@ -80,7 +58,6 @@
     // ################### Soil Humuditiy sensor
         class DEBOCAP {
           public:
-            bool debug;
             int pin;
             int p100;   // Integer value according to 100 % humidity
             int p0;     // Integer value according to 0 % humidity
@@ -202,7 +179,7 @@
 
       struct RTC_config {
         bool sync   = false;      // true, falls die Zeitinformationen der RTC mit dem PC synchronisiert werden sollen (default = FALSE)
-        bool use    = false;       // 0 = don't use RTC (no init will be done), 1 = use RTC
+        bool use    = true;      // 0 = don't use RTC (no init will be done), 1 = use RTC
         bool adjust = false;      // adjust time on RTC chip
       };
       RTC_config _RTC;
@@ -247,30 +224,30 @@
 // ################### SETUP
   void setup(void){
     // ################### Active Debugging
-      DS18B20::setDebug(false);
       _50ms.debug   = false;    
-      _1000ms.debug = true;  
+      _1000ms.debug = false;  
       _1500ms.debug = false;  
       _2000ms.debug = false;
     // ################### Initial values (if ESP8266 is not available)
       // In case of no ESP8266 (Node MCU) connection set initial values
       // These values are immediately overwritten by the ESP8266
-      heater.state_ctl        = 0;    // OFF
-      pipevent.state_ctl      = 1;    // ON    
-      led.state_ctl           = 2;    // 18/6
-      ventilator.state_ctl    = 1;    // ON
-      pipevent_dutycycle.ctl  = 50;   // 50 %
-
+        heater.state_ctl        = 0;    // OFF
+        pipevent.state_ctl      = 1;    // ON    
+        led.state_ctl           = 2;    // 18/6
+        ventilator.state_ctl    = 1;    // ON
+        pipevent_dutycycle.ctl  = 50;   // 50 %
     // ################### Debugging Monitor  
       Serial.begin(9600);             // for Debugging/print  
       while (!Serial) {
         ; // wait for serial port to connect
       }
       delay(1000);
+      Serial.println("Serial Monitor initialized");
     // ################### dataexchange
       pinMode(rxPin, INPUT);
       pinMode(txPin, OUTPUT);
       DATAX_ARDU_ESP.begin(9600);
+      Serial.println("Dataexchange initialized");
     // ################### Digital-Output
       // ################### set pin numbers
         heater.pin      = PD2;
@@ -288,7 +265,6 @@
         digitalWrite(led.pin, LOW);
         digitalWrite(ventilator.pin, LOW);
     // ################### DEBOCAP
-      debo.debug  = false;
       debo.pin    = A0;
       debo.p100   = 258;      // tested for water (3,3 V with short connection)
       debo.p0     = 635;      // tested for dry air (3,3 V with short connection)
@@ -296,13 +272,18 @@
       // debo.p0     = 255;   // tested for wet soil (3,3 V with short connection)
 
     // ################### DHT22
-      if (DHT22_th::use == true) {
+      if (dht22_1.use == true) {
         dht1.begin();           // Feuchtigkeitssensor DHT22 (1) starten
+        Serial.println("DHT22_1 initialized");
+      }
+      if (dht22_2.use == true) {
         dht2.begin();           // Feuchtigkeitssensor DHT22 (2) starten
+        Serial.println("DHT22_2 initialized");
       }
     // ################### DS18B20
-      if (DS18B20::use == true) {
+      if (DS18B20_use == true) {
         tempsensors.begin();    // Temperatursensoren starten 
+        Serial.println("DS18B20 initialized");
       }    
     // ################### RTC
       if (_RTC.use == true) {
@@ -385,9 +366,6 @@
           byte _number_of_items = sscanf(received_data,"%u,%u,%u,%u,%u,%u,%u", \
           &heater.state_ctl, &pipevent.state_ctl, &led.state_ctl, &ventilator.state_ctl, \
           &pipevent_dutycycle.ctl, &pipevent_timing.minute_ON, &pipevent_timing.minute_OFF);
-          // if (dataexchange_debug == true) {
-          //   PRINT_VARIABLE(_number_of_items);   // check number of items (here 11)
-          // }
       }
 
     // ################### 1000 ms
@@ -397,6 +375,7 @@
         if (_1000ms.debug == true) {
           Serial.println("<Start> 1000 ms");
         }
+
         // ################### Calculate times with second-timer
           t.second++;
         
@@ -557,24 +536,22 @@
               if (ventilator.minute != ventilator.minute_pre) {
                 ventilator.minute_pre = ventilator.minute;
 
-                if (debug_array == true) {
-                  Serial.println("check ventilator state");
-                }
+                // Serial.println("check ventilator state");
 
                 // Change ventilator state (on/off) according to actual minutes and state-array
                 for (word i = 0; (i < sizeof(vent_min_array) / sizeof(vent_min_array[0]) && i < 1000) ; i++){
                   if (t.minute == vent_min_array[i]) {
                     ventilator.state = vent_state_array[i];
-                    if (debug_array == true) {
-                      Serial.println("change ventilator state (" + String(ventilator.state) + ") at minute: " + String(t.minute));
-                    }
+                    
+                    // Serial.println("change ventilator state (" + String(ventilator.state) + ") at minute: " + String(t.minute));
+                    
                     i = 1000; //exit for-loop
                   }
                   else if (t.minute < vent_min_array[i]) {
                     ventilator.state = vent_state_array[i-1];
-                    if (debug_array == true) {
-                      Serial.println("change ventilator state (" + String(ventilator.state) + ") at minute: " + String(t.minute));
-                    }
+
+                    // Serial.println("change ventilator state (" + String(ventilator.state) + ") at minute: " + String(t.minute));
+                    
                     i = 1000; //exit for-loop       
                   }
                   // next loop cycle
@@ -612,24 +589,22 @@
               if (led.minute != led.minute_pre) {
                 led.minute_pre = led.minute;
 
-                if (debug_array == true) {
-                  Serial.println("check LED state");
-                }
+                // Serial.println("check LED state");
 
                 // Change led state (on/off) according to actual hour-minutes and state-array
                 for (word i = 0; (i < sizeof(led_hourm_array) / sizeof(led_hourm_array[0]) && i < 1000) ; i++){
                   if (t.hourminute == led_hourm_array[i]) {
                     led.state = led_state_array[i];
-                    if (debug_array == true) {
-                      Serial.println("change LED state (" + String(led.state) + ") at hour minute: " + String(t.hourminute));
-                    }
+
+                    // Serial.println("change LED state (" + String(led.state) + ") at hour minute: " + String(t.hourminute));
+
                     i = 1000; //exit for-loop
                   }
                   else if (t.hourminute < led_hourm_array[i]) {
                     led.state = led_state_array[i-1];
-                    if (debug_array == true) {
-                      Serial.println("change LED state at (" + String(led.state) + ") hour minute: " + String(t.hourminute));
-                    }
+
+                    // Serial.println("change LED state at (" + String(led.state) + ") hour minute: " + String(t.hourminute));
+
                     i = 1000; //exit for-loop       
                   }
                   // next loop cycle
@@ -659,19 +634,17 @@
         }
 
         // ############################################   READ temperature sensors
-          if (DS18B20::use == true) {
+          if (DS18B20_use == true) {
             tempsensors.requestTemperatures();
             DS18B20_temp1.t_float = tempsensors.getTempCByIndex(0);
             DS18B20_temp2.t_float = tempsensors.getTempCByIndex(1);
             DS18B20_temp3.t_float = tempsensors.getTempCByIndex(2);
           }
 
-          if (DS18B20::debug == true) {
-            Serial.println("Temperaturen [°C] der DS18B20-Sensoren");
-            PRINT_VARIABLE(DS18B20_temp1.t_float);    
-            PRINT_VARIABLE(DS18B20_temp2.t_float);    
-            PRINT_VARIABLE(DS18B20_temp3.t_float);    
-          }
+          // Serial.println("Temperaturen [°C] der DS18B20-Sensoren");
+          // PRINT_VARIABLE(DS18B20_temp1.t_float);    
+          // PRINT_VARIABLE(DS18B20_temp2.t_float);    
+          // PRINT_VARIABLE(DS18B20_temp3.t_float);    
 
         // ############################################   READ soil moisture sensor
           int debocap_value = analogRead(debo.pin);
@@ -679,28 +652,25 @@
           // Konvertiere den analogen Wert in eine Bodenfeuchte-Prozentzahl
           debo.soil_humidity_p = map(debocap_value, debo.p100, debo.p0, 100, 0);
 
-          if (debo.debug == true) {
-            Serial.println("Feuchtigkeit [%] und Spannung [V] des DEBOCAP"); 
-            PRINT_VARIABLE(debo.soil_humidity_p);
-            PRINT_VARIABLE(debocap_value);
-          }
+          // Serial.println("Feuchtigkeit [%] und Spannung [V] des DEBOCAP"); 
+          // PRINT_VARIABLE(debo.soil_humidity_p);
+          // PRINT_VARIABLE(debocap_value);
 
         // ############################################   READ humidity sensor
-          if (DHT22_th::debug == true) {
+          if (dht22_1.use == true) {
             dht22_1.hum = dht1.readHumidity();        
             dht22_1.temp  = dht1.readTemperature(); 
-                
-            dht22_1.hum = dht2.readHumidity();        
+          }
+          if (dht22_2.use == true) {
+            dht22_2.hum = dht2.readHumidity();        
             dht22_2.temp  = dht2.readTemperature();  
           }
-          if (DHT22_th::debug == true) {
-            Serial.println("Relative Luftfeuchtigkeit [%] und Temperatur [°C] des DHT22");
-            PRINT_VARIABLE(dht22_1.hum);
-            PRINT_VARIABLE(dht22_1.temp);
-            PRINT_VARIABLE(dht22_2.hum);
-            PRINT_VARIABLE(dht22_2.temp);  
-          }        
 
+          // Serial.println("DHT22_1: Feuchtigkeit = " + String(dht22_1.hum) + " %");
+          // Serial.println("DHT22_1: Temperatur = " + String(dht22_1.temp) + " °C");
+
+          // Serial.println("DHT22_2: Feuchtigkeit = " + String(dht22_2.hum) + " %"); 
+          // Serial.println("DHT22_2: Temperatur = " + String(dht22_2.temp) + " °C");     
       }
     
   }
