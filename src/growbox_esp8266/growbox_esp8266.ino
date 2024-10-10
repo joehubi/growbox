@@ -18,7 +18,11 @@
       #define txPin D6
       dataexchange DATAX_ARDU_ESP(rxPin, txPin);
       const bool dataexchange_debug = false;   
-      int msg_req_feedback = 0;
+      int msg_req_feedback        = 0;    // value from Arduino Uno
+      int msg_req_feedback_       = 0;    // last saved value from Arduino
+      int msg_req_feedback_dt     = 0;    // change/slope of feedback
+      bool msg_req_feedback_con   = 0;    // true = connection to Arduino OK, false = lost connection
+
       // ################### READ
         char received_data[50]; // max. number of signs in data string
       // ################### SEND
@@ -366,6 +370,24 @@
 
         if (debug_timer_1000ms == true) {
           Serial.println("<Start> 1000 ms");
+        }
+
+        // ################### Check connection to Arduino
+
+        if (msg_req_feedback =! msg_req_feedback_) {
+          msg_req_feedback_ == msg_req_feedback;    // save value
+          msg_req_feedback_con = true;              // connection OK
+          msg_req_feedback_dt = 0;
+        }
+        else {
+          msg_req_feedback_dt++;
+          if (msg_req_feedback_dt > 10) {           // if 10 seconds no feeback from Ardion -> Not OK
+            msg_req_feedback_con = false;           // connection lost
+            Serial.println("Error: Connection to Arduion via TxRx lost!");
+            TS01_int = -666;  // set temperatures to -66.6 °C to recognize connection los on GUI
+            TS02_int = -666;
+            TS03_int = -666;
+          }
         }
 
         // ################### Integer in Float umwandeln
