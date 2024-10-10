@@ -658,11 +658,11 @@
 
         // ############################################   READ humidity sensor
           if (dht22_1.use == true) {
-            dht22_1.hum = dht1.readHumidity();        
+            dht22_1.hum   = dht1.readHumidity();        
             dht22_1.temp  = dht1.readTemperature(); 
           }
           if (dht22_2.use == true) {
-            dht22_2.hum = dht2.readHumidity();        
+            dht22_2.hum   = dht2.readHumidity();        
             dht22_2.temp  = dht2.readTemperature();  
           }
 
