@@ -666,10 +666,10 @@
             dht22_2.temp  = dht2.readTemperature();  
           }
 
-          // Serial.println("DHT22_1: Feuchtigkeit = " + String(dht22_1.hum) + " %");
+          Serial.println("DHT22_1: Feuchtigkeit = " + String(dht22_1.hum) + " %");
           // Serial.println("DHT22_1: Temperatur = " + String(dht22_1.temp) + " °C");
 
-          // Serial.println("DHT22_2: Feuchtigkeit = " + String(dht22_2.hum) + " %"); 
+          Serial.println("DHT22_2: Feuchtigkeit = " + String(dht22_2.hum) + " %"); 
           // Serial.println("DHT22_2: Temperatur = " + String(dht22_2.temp) + " °C");     
       }
     
